@@ -1,8 +1,8 @@
 from Ncore import Client
 
 
-async def custom_handle_updates(cls, message):
-    cls.info(f"Новое событие - {message['_']}")
+async def custom_handle_updates(message):
+    client.info(f"Новое событие - {message['_']}")
 
 
 def main():
