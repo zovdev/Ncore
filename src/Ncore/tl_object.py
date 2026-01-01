@@ -22,7 +22,7 @@ from Ncore import tl
 
 
 try:
-    tl_shema = json.load(open("./Ncore/tl_shema.json"))
+    tl_shema = json.load(open(__file__[:__file__.rfind("/")] + "tl_shema.json"))
 except FileNotFoundError:
     raise FileNotFoundError("Сука где схема! Скачай блять https://core.telegram.org/schema/json")
 
