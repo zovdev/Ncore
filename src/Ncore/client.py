@@ -70,9 +70,12 @@ class Client:
         except BaseException as ex:
             self.error(f"Ошибка сохранения сессии [{self.storagename}] -> {ex}")
 
-    async def start(self, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
+    async def start(self, handle_updates=None, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
         await self.session.start(device_model, system_version, app_version, system_lang_code, lang_pack, lang_code)
         await self.session.invoke({"_": "getState"})
+
+        if handle_updates is not None:
+            self.handle_updates = handle_updates
 
     async def handle_updates(self, message):
         self.info(message)
