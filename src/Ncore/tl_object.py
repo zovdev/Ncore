@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import json
 import struct
 
@@ -22,7 +23,7 @@ from Ncore import tl
 
 
 try:
-    tl_shema = json.load(open(__file__[:__file__.rfind("\\")] + "\\tl_schema.json"))
+    tl_shema = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "tl_schema.json")))
 except FileNotFoundError:
     raise FileNotFoundError("Файл не найден. Скачайте https://core.telegram.org/schema/json и поместите в Ncore\\tl_schema.json")
 
@@ -512,7 +513,7 @@ upwork_shema = [
     },
     {
         "id": 0x62d6b459,
-        "predicate": "msgs_ack",
+        "predicate": "msgsAck",
         "params": [
             {
                 "name": "msg_ids",

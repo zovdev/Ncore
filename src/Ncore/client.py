@@ -33,7 +33,7 @@ class Client:
         sys.stdout.write(f"\033[1;31m[ ERROR ] [ {inspect.currentframe().f_back.f_code.co_name} ] {txt}\033[0m\n")
 
     def __init__(self, api_id, api_hash, bot_token, storagename="storage", loop=None):
-        os.chdir(sys.argv[0][:sys.argv[0].rfind("/")])
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
         if not isinstance(loop, asyncio.AbstractEventLoop):
             try:
