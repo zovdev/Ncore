@@ -28,10 +28,18 @@ jobs:
       - name: Install dependencies
         run: python -m pip install --upgrade pip setuptools wheel
 
+	  - name: Prepare CIBW_BUILD variable
+	  	id: prep_vars
+		shell: bash
+		run: |
+          PY_VERSION_NODOT="${{ matrix.python-version//./}}"
+          echo "build_pattern=cp${PY_VERSION_NODOT}-*" >> "$GITHUB_OUTPUT"
+
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.16.5
         env:
-          CIBW_BUILD: "cp${{ replace(matrix.python-version, '.', '') }}-*"
+          CIBW_BUILD: ${{ steps.prep_vars.outputs.build_pattern }}
           CIBW_SKIP: "pp*"
           CIBW_PRERELEASE_PYTHONS: True
           CIBW_FREE_THREADED_SUPPORT: True
