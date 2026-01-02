@@ -32,7 +32,8 @@ jobs:
         id: prep_vars
         shell: bash
         run: |
-          PY_VERSION_NODOT="${{ matrix.python-version//./}}"
+          PY_VERSION="${{ matrix.python-version }}"
+          PY_VERSION_NODOT="${PY_VERSION//./}"
           echo "build_pattern=cp${PY_VERSION_NODOT}-*" >> "$GITHUB_OUTPUT"
 
       - name: Build wheels
