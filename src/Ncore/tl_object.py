@@ -22,9 +22,9 @@ from Ncore import tl
 
 
 try:
-    tl_shema = json.load(open(__file__[:__file__.rfind("/")] + "/tl_schema.json"))
+    tl_shema = json.load(open(__file__[:__file__.rfind("\\")] + "\\tl_schema.json"))
 except FileNotFoundError:
-    raise FileNotFoundError("Файл не найден. Скачайте https://core.telegram.org/schema/json")
+    raise FileNotFoundError("Файл не найден. Скачайте https://core.telegram.org/schema/json и поместите в Ncore\\tl_schema.json")
 
 
 def Int128(value, signed=True):
@@ -525,5 +525,6 @@ upwork_shema = [
 
 
 tl_shema["constructors"].extend(upwork_shema)
+
 
 parser = tl.TLParser(tl_shema)
