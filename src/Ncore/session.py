@@ -455,5 +455,4 @@ class Session:
             self.loop.create_task(self.ping_worker())
         except Exception as ex:
             self._state = 0
-
             self.client.error(f"Ошибка запуска сессии -> {ex}")

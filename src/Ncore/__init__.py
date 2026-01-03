@@ -13,8 +13,14 @@
 # limitations under the License.
 
 
+from .methods import Methods
 from .client import Client
 from .tl_object import parser
 
-__version__ = "0.9.57"
+
+class Client(Client, Methods):
+    ...
+
+
+__version__ = "0.9.59"
 __all__ = ["Client", "parser"]
