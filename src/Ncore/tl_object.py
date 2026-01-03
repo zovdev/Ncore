@@ -62,7 +62,7 @@ def Bytes_read(data):
 def BytesBytesIO_read(data):
     if not data:
         return b""
-    length = int.from_bytes(data.read(1), "little")
+    length = data.read(1)[0]
     if length < 254:
         x = data.read(length)
         data.read(-(length + 1) % 4)
@@ -77,6 +77,7 @@ def get_tl_object(data):
 
     if cid == b"\xa1\xcfr0": # GzipPacked 0x3072CFA1
         data = decompress(Bytes_read(data[4:]))
+        cid = data[0:4] 
     if cid == b"\x11\xe5\xb8[": # Message 0x5BB8E511
         return CoreMessage.read(BytesIO(data[4:]))
     if cid == b"\xdc\xf8\xf1s": # MsgContainer 0x73F1F8DC
@@ -85,6 +86,7 @@ def get_tl_object(data):
         return RpcResult.read(data[4:])
 
     return parser.unpack(data)
+
 
 
 class MsgContainer:
@@ -97,7 +99,6 @@ class MsgContainer:
     @staticmethod
     def read(data):
         count = struct.unpack("<i", data.read(4))[0]
-        # return MsgContainer([CoreMessage.read(data) for _ in range(count)])
         return {"_": "msgContainer", "messages": [CoreMessage.read(data) for _ in range(count)]}
 
     def write(self):
@@ -389,7 +390,7 @@ class CoreMessage:
         return struct.pack("<qii", self.msg_id, self.seq_no, self.length) + (self.body if isinstance(self.body, bytes) else parser.pack(self.body))
 
 
-upwork_shema = [
+upwork_schema = [
     {
         "id": 0x7abe77ec,
         "predicate": "ping",
@@ -525,7 +526,7 @@ upwork_shema = [
 ]
 
 
-tl_shema["constructors"].extend(upwork_shema)
+tl_shema["constructors"].extend(upwork_schema)
 
 
 parser = tl.TLParser(tl_shema)

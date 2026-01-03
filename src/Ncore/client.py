@@ -33,8 +33,6 @@ class Client:
         sys.stdout.write(f"\033[1;31m[ ERROR ] [ {inspect.currentframe().f_back.f_code.co_name} ] {txt}\033[0m\n")
 
     def __init__(self, api_id, api_hash, bot_token, storagename="storage", loop=None):
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
         if not isinstance(loop, asyncio.AbstractEventLoop):
             try:
                 loop = asyncio.get_running_loop()
@@ -50,21 +48,28 @@ class Client:
 
         self.routers = {}
 
+        self.storage = {
+            "id": None,
+            "first_name": None,
+            "username": None,
+            "dc_id": 2,
+            "auth_key": None,
+        }
+
         try:
-            self.storage = msgpack.load(open(self.storagename, "rb"))
-            self.info(f"Сессия [{self.storagename}] загружена")
+            if self.storagename:
+                self.storage = msgpack.load(open(self.storagename, "rb"))
+                self.info(f"Сессия [{self.storagename}] загружена")
+            else:
+                self.info("Сессия [:memory:] загружена")
         except:
-            self.storage = {
-                "id": None,
-                "username": None,
-                "dc_id": 2,
-                "auth_key": None,
-            }
             self.save_storage()
 
         self.session = Session(self, self.loop)
 
     def save_storage(self):
+        if not self.storagename:
+            return
         try:
             msgpack.dump(self.storage, open(self.storagename, "wb"))
         except BaseException as ex:

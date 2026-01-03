@@ -17,6 +17,7 @@ import time
 import struct
 import socket
 import asyncio
+from tkinter import NO
 import tgcrypto
 
 from io import BytesIO
@@ -28,17 +29,17 @@ from Ncore.tl_object import CoreMessage
 
 
 BADMSGNOTIFICATIONS = {
-    16: "The msg_id is too low, the client time has to be synchronized.",
-    17: "The msg_id is too high, the client time has to be synchronized.",
-    18: "Incorrect two lower order of the msg_id bits, the server expects the client message msg_id to be divisible by 4.",
-    19: "The container msg_id is the same as the msg_id of a previously received message.",
-    20: "The message is too old, it cannot be verified by the server.",
-    32: "The msg_seqno is too low.",
-    33: "The msg_seqno is too high.",
-    34: "An even msg_seqno was expected, but an odd one was received.",
-    35: "An odd msg_seqno was expected, but an even one was received.",
-    48: "Incorrect server salt.",
-    64: "Invalid container."
+    16: "Не верный msg_id, требуется синхронизация времени.",
+    17: "Не верный msg_id, требуется синхронизация времени.",
+    18: "Не верный msg_id, клиентский msg_id должен быть кратен 4.",
+    19: "Не верный msg_id, msg_id контейнера == msg_id предыдущего сообщения.",
+    20: "Очень старое сообщение.",
+    32: "Не верный msg_seqno.",
+    33: "Не верный msg_seqno.",
+    34: "Не верный msg_seqno, отправленно нечетное значение.",
+    35: "Не верный msg_seqno, получено четное значение.",
+    48: "Неправильная соль сервера.",
+    64: "Недопустимый контейнер."
 }
 
 
@@ -53,9 +54,8 @@ class Connect:
         if not self.client.storage["auth_key"]:
             self.client.warn("Получение auth_key")
             self.loop.run_until_complete(Auth(self.client, self.loop, self)())
-            self.client.save_storage()
             self._isAuth = 1
-            self.client.info("Ключ получен")
+            self.client.info("Получен auth_key")
 
         self.salt = 0
         self.session_id = os.urandom(8)
@@ -67,21 +67,12 @@ class Connect:
         sha256_b = sha256(self.auth_key[x+40:x+76] + msg_key).digest()
         return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
 
-    # def pack(self, message):
-    #     data = struct.pack("<q", self.salt) + self.session_id + message.write()
-    #     padding = os.urandom(-(len(data) + 12) % 28)
-    #     msg_key = sha256(self.auth_key[88:120] + data + padding).digest()[8:24]
-    #     aes_key, aes_iv = self.kdf(msg_key, 0)
-    #     return self.auth_key_id + msg_key + tgcrypto.ige256_encrypt(data + padding, aes_key, aes_iv)
-
     def pack(self, message):
-        mb = message.write()
-        data = struct.pack("<Q", self.salt) + self.session_id + mb
+        data = struct.pack("<Q", self.salt) + self.session_id + message.write()
 
         padding_len = 16 - (len(data) % 16)
         if padding_len < 12:
             padding_len += 16
-            
         padding = os.urandom(padding_len)
 
         msg_key = sha256(self.auth_key[88:120] + data + padding).digest()[8:24]
@@ -119,7 +110,7 @@ class Connect:
 
     def disconnect(self):
         try:
-            self.connection.sock.close()
+            self.sock.close()
         except:
             pass
         self._state = 0
@@ -150,7 +141,6 @@ class Connect:
         length = len(data) // 4
 
         try:
-            # TODO Поменять логику упаковки пакетов на более оптимальную
             if length < 127:
                 data = bytes([length]) + data
             else:
@@ -194,33 +184,6 @@ class Connect:
                 return None
             lbytes += chunk_size
         return data
-
-    # async def recv(self):
-    #     # TODO возможно обновить логику распаковки пакетов
-    #     # TODO Возможно заменить sock_recv(1)/sock_recv(3) на sock_recv(4)
-    #     length = await self.loop.sock_recv(self.sock, 1)
-    #     if length is None:
-    #         return None
-    #     if length == b"\x7f":
-    #         length = await self.loop.sock_recv(self.sock, 3)
-    #         if length is None:
-    #             return None
-    #         length = struct.unpack("<I", length+b"\x00")[0] * 4
-    #     else:
-    #         length = length[0] * 4
-
-    #     data = bytes(length)
-    #     rlen = 0
-    #     while rlen < length:
-    #         try:
-    #             chunk = await asyncio.wait_for(self.loop.sock_recv_into(self.sock, data), timeout=10)
-    #         except (OSError, asyncio.TimeoutError):
-    #             return None
-    #         if chunk == 0:
-    #             return None
-    #         rlen += chunk
-
-    #     return data
 
 
 class Session:
@@ -325,11 +288,11 @@ class Session:
                 self.client.error("Сервер ничего не отправил")
                 break
             if len(packet) == 4:
-                if packet == b"l\xfe\xff\xff": # 404 AuthKeyNotFound
+                if packet == b"l\xfe\xff\xff":
                     self.client.error("Ошибка 404 (AuthKeyNotFound) указанный идентификатор ключ не может быть найден DC / какой-либо из указанных запросов неправильный / некоторые поля MTProto неверны")
-                elif packet == b"S\xfe\xff\xff": # 429 TransportFlood
+                elif packet == b"S\xfe\xff\xff":
                     self.client.error("Ошибка 429 (TransportFlood) слишком много транспортных соединений с одним IP / какой-либо из ограничений контейнера (сервисного сообщения) достигнут")
-                elif packet == b"D\xfe\xff\xff": # 444 InvalidDC
+                elif packet == b"D\xfe\xff\xff":
                     self.client.error("Ошибка 444 (InvalidDC) возвращается при создании ключей, подключающегося к MTProxy если указан неверный DC ID")
                 else:
                     self.client.error(f"Неизвестная ошибка сервера - {struct.unpack('<i', packet)[0]}")
@@ -390,12 +353,12 @@ class Session:
         if result is None:
             raise TimeoutError("Время запроса вышло")
         elif result["_"] == "rpcError":
-            raise Exception(f"RpcError [{result.error_code}] - {result.error_message} (by {body['_']})")
+            raise Exception(f"RpcError [{result['error_code']}] - {result['error_message']} (by {body['_']})")
         elif result["_"] == "badMsgNotification":
             if result.error_code in BADMSGNOTIFICATIONS:
-                self.client.warn(f"BadMsgNotification [{result.error_code}] - {BADMSGNOTIFICATIONS[result.error_code]}")
+                self.client.warn(f"BadMsgNotification [{result['error_code']}] - {BADMSGNOTIFICATIONS[result['error_code']]}")
             else:
-                self.client.warn(f"BadMsgNotification [{result.error_code}] - Неизвестный код ошибки")
+                self.client.warn(f"BadMsgNotification [{result['error_code']}] - Неизвестный код ошибки")
         elif result["_"] == "badServerSalt":
             self.connection.salt = result["new_server_salt"]
             return await self.send(body, response, timeout)
@@ -404,14 +367,20 @@ class Session:
 
     async def invoke(self, query, timeout=15, retrying=5, retry_delay=1.5):
         try:
-            return await self.send(query, timeout=timeout)
+            data = await self.send(query, timeout=timeout)
+            if not data:
+                return None
+            return data["result"]
         except Exception as ex:
             self.client.warn(f"Ошибка отправки invoke -> {ex}")
             await asyncio.sleep(retry_delay) # TODO добавить обработку FloodWait, FloodPremiumWait
 
         for _ in range(retrying):
             try:
-                return await self.send(query, timeout=timeout)
+                data = await self.send(query, timeout=timeout)
+                if not data:
+                    return None
+                return data["result"]
             except Exception as ex:
                 self.client.warn(f"Ошибка отправки invoke -> {ex}")
                 await asyncio.sleep(retry_delay)
@@ -424,8 +393,8 @@ class Session:
 
         self._state = 3
 
-        await asyncio.wait_for(self._state_workers[0].wait())
-        await asyncio.wait_for(self._state_workers[1].wait())
+        await asyncio.wait_for(self._state_workers[0].wait(), timeout=None)
+        await asyncio.wait_for(self._state_workers[1].wait(), timeout=None)
 
         self._state_workers[0].clear()
         self._state_workers[1].clear()
@@ -450,34 +419,40 @@ class Session:
                 "lang_code": lang_code,
             }
 
-        # try:
-        self._state = 1
-        await self.connection.connect()
-        self.loop.create_task(self.recv_worker())
-        await self.send({"_": "ping", "ping_id": 0}, timeout=5)
-        await self.send({
-            "_": "invokeWithLayer",
-            "layer": 214,
-            "query": {
-                "_": "initConnection",
-                "api_id": self.client.api_id,
-                **self._start_config,
+        try:
+            self._state = 1
+            await self.connection.connect()
+            self.loop.create_task(self.recv_worker())
+            await self.send({"_": "ping", "ping_id": 0}, timeout=5)
+            await self.send({
+                "_": "invokeWithLayer",
+                "layer": 214,
                 "query": {
-                    "_": "getConfig"
+                    "_": "initConnection",
+                    "api_id": self.client.api_id,
+                    **self._start_config,
+                    "query": {
+                        "_": "getConfig"
+                    }
                 }
-            }
-        }, timeout=5)
+            }, timeout=5)
 
-        if self.connection._isAuth == 1:
-            await self.invoke({
-                "_": "auth.importBotAuthorization",
-                "flags": 0,
-                "api_id": self.client.api_id,
-                "api_hash": self.client.api_hash,
-                "bot_auth_token": self.client.bot_token,
-            })
+            if self.connection._isAuth == 1:
+                botauth = await self.invoke({
+                    "_": "auth.importBotAuthorization",
+                    "flags": 0,
+                    "api_id": self.client.api_id,
+                    "api_hash": self.client.api_hash,
+                    "bot_auth_token": self.client.bot_token,
+                })
 
-        self._state = 2
-        self.loop.create_task(self.ping_worker())
-        # except:
-        #     1
+                self.client.storage["id"] = botauth["id"]
+                self.client.storage["first_name"] = botauth["first_name"]
+                self.client.storage["username"] = botauth["username"]
+                self.client.save_storage()
+
+            self._state = 2
+            self.loop.create_task(self.ping_worker())
+        except Exception as ex:
+            self._state = 0
+            self.client.error(f"Ошибка запуска сессии -> {ex}")
