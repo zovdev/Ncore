@@ -446,13 +446,14 @@ class Session:
                     "bot_auth_token": self.client.bot_token,
                 })
 
-                self.client.storage["id"] = botauth["id"]
-                self.client.storage["first_name"] = botauth["first_name"]
-                self.client.storage["username"] = botauth["username"]
+                self.client.storage["id"] = botauth["user"]["id"]
+                self.client.storage["first_name"] = botauth["user"]["first_name"]
+                self.client.storage["username"] = botauth["user"]["username"]
                 self.client.save_storage()
 
             self._state = 2
             self.loop.create_task(self.ping_worker())
         except Exception as ex:
             self._state = 0
+
             self.client.error(f"Ошибка запуска сессии -> {ex}")
