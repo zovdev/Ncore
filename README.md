@@ -23,38 +23,34 @@ pip install Ncore
 
 ```python
 from Ncore import Client
+from Ncore.methods import SendMessage
+from Ncore.types import InputPeerUser
 
 
-client = Client(api_id=1234, api_hash="...", bot_token="...")
+client = Client(api_id=..., api_hash="...", bot_token="...")
 
 
-async def custom_handle_updates(message):
-    client.info(f"Новое событие - {message}")
+async def custom_handle_updates(message: dict):
+    client.info(f"Новое событие - {message['_']}")
 
     if message["_"] != "updates":
         return
 
-    if message["updates"][0]["_"] != "updateNewMessage":
+    if "message" not in message["updates"][0]:
         return
 
     msg = message["updates"][0]["message"]
     if msg["out"]:
         return
 
-    await client.session.invoke({
-        "_": "messages.sendMessage",
-        "peer" : {
-            "_": "inputPeerUser",
-            "user_id": message["users"][0]["id"],
-            "access_hash": message["users"][0]["access_hash"]
-        },
-        "message": "Ncore echo v2",
-        "random_id": msg["id"]+1
-    })
+    await client.send_message(
+        message="Ncore echo by v3",
+        random_id=msg["id"]+1,
+        peer=InputPeerUser(user_id=message["users"][0]["id"], access_hash=message["users"][0]["access_hash"])
+    )
 
 
 client.loop.run_until_complete(client.start(handle_updates=custom_handle_updates))
-
 client.loop.run_forever()
 
 ```

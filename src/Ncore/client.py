@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import sys
 import inspect
 import asyncio
@@ -22,7 +21,7 @@ from Ncore.session import Session
 
 
 
-class Client:
+class BaseClient:
     def info(self, txt):
         sys.stdout.write(f"\033[1;34m[ INFO ] [ {inspect.currentframe().f_back.f_code.co_name} ] {txt}\033[0m\n")
 
@@ -83,4 +82,6 @@ class Client:
             self.handle_updates = handle_updates
 
     async def handle_updates(self, message):
-        self.info(message)
+        # TODO добавить pre_middleware
+        self.info(message) # TODO добавить обработчики
+        # TODO добавить post_middleware

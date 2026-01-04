@@ -14,13 +14,13 @@
 
 
 from .methods import Methods
-from .client import Client
+from .client import BaseClient
 from .tl_object import parser
 
 
-class Client(Client, Methods):
+class Client(BaseClient, Methods):
     ...
 
 
-__version__ = "0.9.59"
+__version__ = "0.9.64"
 __all__ = ["Client", "parser"]
