@@ -466,7 +466,7 @@ cdef class TLParser:
     cdef void _write_value(self, object value, TLType field_type, object type_name=None):
         if field_type == TL_TYPE_INT: self._write_int32(<int32_t>value)
         elif field_type == TL_TYPE_STRING: self._write_string(<str>value)
-        elif field_type == TL_TYPE_LONG: self._write_int64(<int64_t>value)
+        elif field_type == TL_TYPE_LONG: self._write_int64(<uint64_t>value)
         elif field_type == TL_TYPE_VECTOR: self._write_vector(value, type_name)
         elif field_type == TL_TYPE_OBJECT: self._write_object(value)
         elif field_type == TL_TYPE_DOUBLE: self._write_double(<double>value)

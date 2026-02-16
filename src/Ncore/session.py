@@ -56,28 +56,45 @@ class Connect:
             self._isAuth = 1
             self.client.info("Получен auth_key")
 
-        self.salt = 0
+        self.set_salt(0)
         self.session_id = os.urandom(8)
         self.auth_key = self.client.storage["auth_key"]
         self.auth_key_id = sha1(self.auth_key).digest()[-8:]
 
-    def kdf(self, msg_key, x):
-        sha256_a = sha256(msg_key + self.auth_key[x:x+36]).digest()
-        sha256_b = sha256(self.auth_key[x+40:x+76] + msg_key).digest()
+        self.__ak_036 = self.auth_key[0:36]
+        self.__ak_4076 = self.auth_key[40:76]
+        self.__ak_88120 = self.auth_key[88:120]
+
+        self.__ak_844 = self.auth_key[8:44]
+        self.__ak_4884 = self.auth_key[48:84]
+        self.__ak_96128 = self.auth_key[96:128]
+
+
+    def set_salt(self, value):
+        self.salt = struct.pack("<Q", value)
+
+    def kdf_pack(self, msg_key):
+        sha256_a = sha256(msg_key + self.__ak_036).digest()
+        sha256_b = sha256(self.__ak_4076 + msg_key).digest()
+        return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
+
+    def kdf_unpack(self, msg_key):
+        sha256_a = sha256(msg_key + self.__ak_844).digest()
+        sha256_b = sha256(self.__ak_4884 + msg_key).digest()
         return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
 
     def pack(self, message):
-        data = struct.pack("<Q", self.salt) + self.session_id + message.write()
+        data = self.salt + self.session_id + message.write()
 
         padding_len = 16 - (len(data) % 16)
         if padding_len < 12:
             padding_len += 16
-        padding = os.urandom(padding_len)
+        data_padding = data + os.urandom(padding_len)
 
-        msg_key = sha256(self.auth_key[88:120] + data + padding).digest()[8:24]
-        aes_key, aes_iv = self.kdf(msg_key, 0)
+        msg_key = sha256(self.__ak_88120 + data_padding).digest()[8:24]
+        aes_key, aes_iv = self.kdf_pack(msg_key)
 
-        return self.auth_key_id + msg_key + tgcrypto.ige256_encrypt(data + padding, aes_key, aes_iv)
+        return self.auth_key_id + msg_key + tgcrypto.ige256_encrypt(data_padding, aes_key, aes_iv)
 
 
     def unpack(self, data):
@@ -85,13 +102,13 @@ class Connect:
             raise ValueError("Ошибка безопасности не верный auth_key_id")
 
         msg_key = data[8:24]
-        aes_key, aes_iv = self.kdf(msg_key, 8)
+        aes_key, aes_iv = self.kdf_unpack(msg_key)
         decrypted_data = tgcrypto.ige256_decrypt(data[24:], aes_key, aes_iv)
         data = decrypted_data[8:]
 
         if data[0:8] != self.session_id:
             raise ValueError("Ошибка безопасности не верный session_id")
-        if msg_key != sha256(self.auth_key[96:128] + decrypted_data).digest()[8:24]:
+        if msg_key != sha256(self.__ak_96128 + decrypted_data).digest()[8:24]:
             raise ValueError("Ошибка безопасности не верный msg_key")
 
         message = CoreMessage.read(BytesIO(data[8:]))
@@ -359,7 +376,7 @@ class Session:
             else:
                 self.client.warn(f"BadMsgNotification [{result['error_code']}] - Неизвестный код ошибки")
         elif result["_"] == "badServerSalt":
-            self.connection.salt = result["new_server_salt"]
+            self.connection.set_salt(result["new_server_salt"])
             return await self.send(body, response, timeout)
 
         return result
@@ -425,7 +442,7 @@ class Session:
             await self.send({"_": "ping", "ping_id": 0}, timeout=5)
             await self.send({
                 "_": "invokeWithLayer",
-                "layer": 214,
+                "layer": 222,
                 "query": {
                     "_": "initConnection",
                     "api_id": self.client.api_id,
@@ -454,5 +471,4 @@ class Session:
             self.loop.create_task(self.ping_worker())
         except Exception as ex:
             self._state = 0
-
             self.client.error(f"Ошибка запуска сессии -> {ex}")

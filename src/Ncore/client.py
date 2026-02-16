@@ -20,7 +20,6 @@ import msgpack
 from Ncore.session import Session
 
 
-
 class BaseClient:
     def info(self, txt):
         sys.stdout.write(f"\033[1;34m[ INFO ] [ {inspect.currentframe().f_back.f_code.co_name} ] {txt}\033[0m\n")
@@ -44,8 +43,6 @@ class BaseClient:
         self.bot_token = bot_token
         self.storagename = storagename
         self.loop = loop
-
-        self.routers = {}
 
         self.storage = {
             "id": None,
@@ -74,14 +71,19 @@ class BaseClient:
         except BaseException as ex:
             self.error(f"Ошибка сохранения сессии [{self.storagename}] -> {ex}")
 
-    async def start(self, handle_updates=None, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
+    async def start(self, router=None, handle_updates=None, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
         await self.session.start(device_model, system_version, app_version, system_lang_code, lang_pack, lang_code)
         await self.session.invoke({"_": "getState"})
 
         if handle_updates is not None:
             self.handle_updates = handle_updates
 
+        if router is not None:
+            router.finalize(self)
+            self.router = router
+
     async def handle_updates(self, message):
+        self.info(message)
         # TODO добавить pre_middleware
-        self.info(message) # TODO добавить обработчики
+        await self.router.feed(message)
         # TODO добавить post_middleware

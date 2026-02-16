@@ -38,7 +38,7 @@ typedef struct {
 
 typedef struct {
     char* name;
-    PyObject* py_name; /* Кешированный Python-объект строки (interned string) */
+    PyObject* py_name;
     TLType type;
     char* type_name;
     int is_optional;

@@ -23,34 +23,36 @@ pip install Ncore
 
 ```python
 from Ncore import Client
-from Ncore.methods import SendMessage
-from Ncore.types import InputPeerUser
+from Ncore.router import Router
+from Ncore.types import EventType, UpdateNewMessage, RawUpdate
 
+
+ADMINID = 772947818
 
 client = Client(api_id=..., api_hash="...", bot_token="...")
+router = Router(["/", "."])
 
 
-async def custom_handle_updates(message: dict):
-    client.info(f"Новое событие - {message['_']}")
-
-    if message["_"] != "updates":
-        return
-
-    if "message" not in message["updates"][0]:
-        return
-
-    msg = message["updates"][0]["message"]
-    if msg["out"]:
-        return
-
-    await client.send_message(
-        message="Ncore echo by v3",
-        random_id=msg["id"]+1,
-        peer=InputPeerUser(user_id=message["users"][0]["id"], access_hash=message["users"][0]["access_hash"])
-    )
+async def is_admin(event):
+    return event["users"][0]["id"] == ADMINID
 
 
-client.loop.run_until_complete(client.start(handle_updates=custom_handle_updates))
+@router.add("admin", EventType.NewMessage | EventType.EditMessage, is_admin)
+async def handle_getuser(event: UpdateNewMessage):
+    await event.answer("da")
+
+
+@router.add({"msgsAck"})
+async def handle_ack(event: RawUpdate):
+    print(f"handle_ack {event}")
+
+
+@router.add({"updateDeleteMessages"})
+async def handle_update_delete_messages(event: RawUpdate):
+    print(f"handle_update_delete_messages {event}")
+
+
+client.loop.run_until_complete(client.start(router=router))
 client.loop.run_forever()
 
 ```

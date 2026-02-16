@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 from .methods import Methods
 from .client import BaseClient
 from .tl_object import parser
+from .router import Router
 
 
 class Client(BaseClient, Methods):
     ...
 
 
-__version__ = "0.9.64"
-__all__ = ["Client", "parser"]
+__version__ = "0.9.721"
+__all__ = ["Client", "Router", "parser"]
