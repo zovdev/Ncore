@@ -1,13 +1,13 @@
-import os
+import sys
 
 from setuptools import setup, Extension
 from Cython.Build import cythonize
 
 
-if os.name == "nt":
+if sys.platform == "win32":
     compile_args = ["/std:c++17", "/O2"]
 else:
-    compile_args = ["/std:c++17", "-O3"]
+    compile_args = ["-std=c++17", "-O3"]
 
 
 extensions = [
