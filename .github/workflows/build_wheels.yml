@@ -15,16 +15,32 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.3.0
+
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ matrix.os }}-${{ hashFiles('src/Ncore/*.cpp', 'src/Ncore/*.h') }}
+          restore-keys: |
+            ccache-${{ matrix.os }}-
+
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
         env:
           CIBW_ENABLE: "cpython-prerelease cpython-freethreading"
           CIBW_PROJECT_REQUIRES_PYTHON: ">=3.10"
+          CIBW_ENVIRONMENT_LINUX: "CCACHE_DIR=/project/.ccache PATH=/usr/lib/ccache:$PATH"
+          CIBW_BEFORE_BUILD_LINUX: "yum install -y ccache || apt-get install -y ccache || apk add ccache"
+          CIBW_ENVIRONMENT_WINDOWS: "CCACHE_DIR=.\\.ccache"
+          CIBW_BEFORE_BUILD_WINDOWS: "choco install ccache -y"
+
       - uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ matrix.os }}
@@ -55,8 +71,10 @@ jobs:
           pattern: cibw-wheels-*
           path: dist
           merge-multiple: true
+
       - uses: actions/download-artifact@v4
         with:
           name: sdist
           path: dist
+
       - uses: pypa/gh-action-pypi-publish@release/v1
