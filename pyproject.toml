@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Ncore"
-version = "0.9.805"
+version = "0.9.806"
 authors = [
     { name="zovdev" },
 ]
@@ -35,6 +35,8 @@ dependencies = [
 
 [tool.setuptools]
 include-package-data = true
+package-dir = {"" = "src"}
+packages = ["Ncore"]
 
 [project.urls]
 Homepage = "https://github.com/zovdev/Ncore"
