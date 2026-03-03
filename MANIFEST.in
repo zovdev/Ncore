@@ -1,5 +1,4 @@
-global-include Ncore *.json
-
+recursive-include src/Ncore *.py *.pyx *.pxd *.h *.json
 
 global-exclude *.c
 global-exclude *.cpp
