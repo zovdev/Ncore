@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Ncore"
-version = "0.9.803"
+version = "0.9.805"
 authors = [
     { name="zovdev" },
 ]
