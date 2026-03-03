@@ -17,6 +17,8 @@ import inspect
 import asyncio
 import msgpack
 
+
+from Ncore.router import Router
 from Ncore.session import Session
 
 
@@ -30,19 +32,33 @@ class BaseClient:
     def error(self, txt):
         sys.stdout.write(f"\033[1;31m[ ERROR ] [ {inspect.currentframe().f_back.f_code.co_name} ] {txt}\033[0m\n")
 
-    def __init__(self, api_id, api_hash, bot_token, storagename="storage", loop=None):
-        if not isinstance(loop, asyncio.AbstractEventLoop):
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
+    def __init__(
+        self,
+        api_id: int,
+        api_hash: str,
+        bot_token: str,
+        loop: asyncio.AbstractEventLoop | None=None,
+        storagename: str | None="storage",
+        device_model: str="Ncore python",
+        system_version: str="10.0",
+        app_version: str="4.0",
+        system_lang_code: str="ru",
+        lang_pack: str="tdesktop",
+        lang_code: str="ru"
+    ):
         self.api_id = api_id
         self.api_hash = api_hash
         self.bot_token = bot_token
         self.storagename = storagename
         self.loop = loop
+        self._init_config = {
+            "device_model": device_model,
+            "system_version": system_version,
+            "app_version": app_version,
+            "system_lang_code": system_lang_code,
+            "lang_pack": lang_pack,
+            "lang_code": lang_code,
+        }
 
         self.storage = {
             "id": None,
@@ -53,15 +69,13 @@ class BaseClient:
         }
 
         try:
-            if self.storagename:
+            if self.storagename and self.storagename != ":memory:":
                 self.storage = msgpack.load(open(self.storagename, "rb"))
                 self.info(f"Сессия [{self.storagename}] загружена")
             else:
                 self.info("Сессия [:memory:] загружена")
         except:
             self.save_storage()
-
-        self.session = Session(self, self.loop)
 
     def save_storage(self):
         if not self.storagename:
@@ -71,9 +85,19 @@ class BaseClient:
         except BaseException as ex:
             self.error(f"Ошибка сохранения сессии [{self.storagename}] -> {ex}")
 
-    async def start(self, router=None, handle_updates=None, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
-        await self.session.start(device_model, system_version, app_version, system_lang_code, lang_pack, lang_code)
-        await self.session.invoke({"_": "getState"})
+    async def handle_updates(self, message):
+        self.info(message)
+
+
+        await self.router.feed(message)
+
+
+    async def idle(self):
+        stop_event = asyncio.Event()
+        await stop_event.wait()
+
+    async def start(self, router: Router | None=None, handle_updates=None, proxy: str | None=None):
+        self.loop = asyncio.get_running_loop()
 
         if handle_updates is not None:
             self.handle_updates = handle_updates
@@ -82,8 +106,24 @@ class BaseClient:
             router.finalize(self)
             self.router = router
 
-    async def handle_updates(self, message):
-        self.info(message)
-        # TODO добавить pre_middleware
-        await self.router.feed(message)
-        # TODO добавить post_middleware
+        self.proxy = proxy
+
+        self.session = Session(self)
+
+        await self.session.start()
+        await self.session.invoke({"_": "getState"})
+
+    def run(self, router: Router | None=None, handle_updates=None, proxy: str | None=None):
+        if self.loop is None:
+            try:
+                self.loop = asyncio.get_running_loop()
+            except RuntimeError:
+                self.loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(self.loop)
+
+        try:
+            self.loop.run_until_complete(self.start(router=router, handle_updates=handle_updates, proxy=proxy))
+            self.loop.run_forever()
+        except KeyboardInterrupt:
+            self.loop.run_until_complete(self.session.stop(r=0))
+            self.info("Бот остановлен пользователем (Ctrl+C)")
