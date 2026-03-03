@@ -1,11 +1,13 @@
 global-include Ncore *.json
 
+
 global-exclude *.c
 global-exclude *.cpp
-global-exclude *.h
-global-exclude *.hpp
-global-exclude *.pyx
-global-exclude *.pxd
+global-exclude *.o
 global-exclude *.so
 global-exclude *.pyd
-global-exclude *.o
+
+prune __pycache__
+global-exclude __pycache__/*
+global-exclude *.pyc
+global-exclude *.pyo
