@@ -20,11 +20,13 @@ import asyncio
 import tgcrypto
 
 from io import BytesIO
+from base64 import b64encode
 from hashlib import sha1, sha256
+from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
 from Ncore.utils import MsgFactory, Auth
-from Ncore.tl_object import CoreMessage
+from Ncore.tl_object import CoreMessage, MsgContainer, parser
 
 
 BADMSGNOTIFICATIONS = {
@@ -43,21 +45,26 @@ BADMSGNOTIFICATIONS = {
 
 
 class Connect:
-    def __init__(self, client, loop):
+    def __init__(self, client):
         self.client = client
-        self.loop = loop
+        self.loop = client.loop
 
         self._state = 0
         self._isAuth = 0
 
+        self.set_salt(0)
+        self.session_id = os.urandom(8)
+
+        self.auth_funk = Auth(self.client, self)
+
+    async def init(self):
         if not self.client.storage["auth_key"]:
             self.client.warn("Получение auth_key")
-            self.loop.run_until_complete(Auth(self.client, self.loop, self)())
+            await self.auth_funk()
+
             self._isAuth = 1
             self.client.info("Получен auth_key")
 
-        self.set_salt(0)
-        self.session_id = os.urandom(8)
         self.auth_key = self.client.storage["auth_key"]
         self.auth_key_id = sha1(self.auth_key).digest()[-8:]
 
@@ -69,7 +76,6 @@ class Connect:
         self.__ak_4884 = self.auth_key[48:84]
         self.__ak_96128 = self.auth_key[96:128]
 
-
     def set_salt(self, value):
         self.salt = struct.pack("<Q", value)
 
@@ -79,8 +85,14 @@ class Connect:
         return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
 
     def kdf_unpack(self, msg_key):
-        sha256_a = sha256(msg_key + self.__ak_844).digest()
-        sha256_b = sha256(self.__ak_4884 + msg_key).digest()
+        h_a = sha256(msg_key)
+        h_a.update(self.__ak_844)
+        sha256_a = h_a.digest()
+
+        h_b = sha256(self.__ak_4884)
+        h_b.update(msg_key)
+        sha256_b = h_b.digest()
+
         return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
 
     def pack(self, message):
@@ -95,7 +107,6 @@ class Connect:
         aes_key, aes_iv = self.kdf_pack(msg_key)
 
         return self.auth_key_id + msg_key + tgcrypto.ige256_encrypt(data_padding, aes_key, aes_iv)
-
 
     def unpack(self, data):
         if data[0:8] != self.auth_key_id:
@@ -112,7 +123,6 @@ class Connect:
             raise ValueError("Ошибка безопасности не верный msg_key")
 
         message = CoreMessage.read(BytesIO(data[8:]))
-
         payload_len = len(decrypted_data) - 32
 
         if not 12 <= (payload_len - message.length) <= 1024:
@@ -131,17 +141,90 @@ class Connect:
             pass
         self._state = 0
 
+    async def proxy_handshake_socks5(self, address, target_address, username, password):
+        await self.loop.sock_connect(self.sock, address)
+
+        if username and password:
+            await self.loop.sock_sendall(self.sock, b"\x05\x01\x02")
+            res = await self.loop.sock_recv(self.sock, 2)
+            if res != b"\x05\x02":
+                self.client.error("Прокси не поддерживает авторизацию")
+                raise ConnectionError()
+
+            user_b, pass_b = username.encode(), password.encode()
+            u_len, p_len = len(user_b), len(pass_b)
+            auth_req = struct.pack(f"<BB{u_len}sB{p_len}s", 0x01, u_len, user_b, p_len, pass_b)
+
+            await self.loop.sock_sendall(self.sock, auth_req)
+
+            auth_res = await self.loop.sock_recv(self.sock, 2)
+            if auth_res != b"\x01\x00":
+                self.client.error("Ошибка авторизации прокси")
+                raise ConnectionError()
+        else:
+            await self.loop.sock_sendall(self.sock, b"\x05\x01\x00")
+            res = await self.loop.sock_recv(self.sock, 2)
+            if res != b"\x05\x00":
+                self.client.error("Прокси требует авторизацию / Не доступен")
+                raise ConnectionError()
+
+        ip_bytes = socket.inet_aton(target_address[0])
+        connect_req = struct.pack(">BBBB4sH", 0x05, 0x01, 0x00, 0x01, ip_bytes, target_address[1])
+
+        await self.loop.sock_sendall(self.sock, connect_req)
+
+        conn_res = await self.loop.sock_recv(self.sock, 10)
+        if len(conn_res) < 2 or conn_res[1] != 0x00:
+            err_code = conn_res[1] if len(conn_res) > 1 else "Unknown"
+            self.client.error(f"Ошибка подключения: {err_code}")
+            raise ConnectionError()
+
+    async def proxy_handshake_http(self, address, target_address, username, password):
+        await self.loop.sock_connect(self.sock, address)
+
+        headers = f"CONNECT {target_address[0]}:{target_address[1]} HTTP/1.1\r\nHost: {target_address[0]}:{target_address[1]}\r\n"
+        if username and password:
+            b64_auth = b64encode(f"{username}:{password}".encode()).decode()
+            headers += f"Proxy-Authorization: Basic {b64_auth}\r\n"
+        headers += "\r\n"
+
+        await self.loop.sock_sendall(self.sock, headers.encode())
+
+        response = await self.loop.sock_recv(self.sock, 4096)
+        if b" 200" not in response.split(b"\r\n")[0]:
+            self.client.error(f"Ошибка прокси: {response.decode(errors='ignore')}")
+            raise ConnectionError()
+
+
     async def connect(self, address=("149.154.167.51", 443), socket_timeout=10, retrying=3):
         if self._state != 0:
             return self.client.info("Клиент уже подключён")
 
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(socket_timeout)
-        self.sock.setblocking(False)
+        handshake = None
+
+        if self.client.proxy:
+            proxy_data = urlparse(self.client.proxy)
+            ptype = proxy_data.scheme.lower()
+
+            if ptype.startswith("socks5"):
+                handshake = self.proxy_handshake_socks5
+            elif ptype.startswith("http"):
+                handshake = self.proxy_handshake_http
+            else:
+                self.client.error(f"Не известный тип прокси - {ptype}. Доступно [socks5/http]")
+                raise ConnectionError()
 
         for _ in range(retrying):
             try:
-                await self.loop.sock_connect(self.sock, address)
+                self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.sock.settimeout(socket_timeout)
+                self.sock.setblocking(False)
+
+                if handshake is not None:
+                    await handshake((proxy_data.hostname, proxy_data.port), address, proxy_data.username, proxy_data.password)
+                else:
+                    await self.loop.sock_connect(self.sock, address)
+
                 await self.loop.sock_sendall(self.sock, b"\xef")
             except BaseException as ex:
                 self.client.error(f"Ошибка подключения -> {ex}")
@@ -158,9 +241,9 @@ class Connect:
 
         try:
             if length < 127:
-                data = bytes([length]) + data
+                data = struct.pack(f"<B{len(data)}s", length, data)
             else:
-                data = length.to_bytes(3, "little") + data
+                data = struct.pack(f"<I{len(data)}s", (length << 8) | 0x7f, data)
             await self.loop.sock_sendall(self.sock, data)
         except BaseException as ex:
             self.client.error(f"Ошибка отправки -> {ex}")
@@ -178,18 +261,17 @@ class Connect:
         else:
             length = length[0] * 4
 
-        data = bytearray(length)
+        buf = bytearray(length)
+        view = memoryview(buf)
 
         try:
-            lbytes = await asyncio.wait_for(self.loop.sock_recv_into(self.sock, data), timeout=10)
+            lbytes = await asyncio.wait_for(self.loop.sock_recv_into(self.sock, view), timeout=10)
         except (OSError, asyncio.TimeoutError):
             return None
         if lbytes == length:
-            return data
+            return view
         if lbytes == 0:
             return None
-
-        view = memoryview(data)
 
         while lbytes < length:
             try:
@@ -199,20 +281,19 @@ class Connect:
             if chunk_size == 0:
                 return None
             lbytes += chunk_size
-        return data
+        return view
 
 
 class Session:
-    def __init__(self, client, loop, mt_workers=2):
+    def __init__(self, client, mt_workers=2):
         self.client = client
-        self.loop = loop
+        self.loop = client.loop
 
         self.msg_factory = MsgFactory(self)
-        self.connection = Connect(self.client, self.loop)
+        self.connection = Connect(self.client)
         self.pool_executor = ThreadPoolExecutor(max_workers=mt_workers)
 
         self._state = 0
-        self._state_workers = [asyncio.Event(), asyncio.Event()]
         self._start_config = {}
 
         self.ignore_error = 0
@@ -220,6 +301,9 @@ class Session:
         self.time_offset = None
         self.pending_acks = set()
         self.recent_msg_ids  = set()
+
+        self._batch_list = []
+        self._batch_event = asyncio.Event()
 
     def server_time(self):
         return time.time() + (self.time_offset or 0)
@@ -297,7 +381,7 @@ class Session:
             self.pending_acks.clear()
 
     async def recv_worker(self):
-        while self._state in {1, 2}:
+        while True:
             packet = await self.connection.recv()
 
             if packet is None:
@@ -316,11 +400,10 @@ class Session:
 
             self.loop.create_task(self.handle_packet(packet))
 
-        self._state_workers[0].set()
         await self.stop()
 
     async def ping_worker(self):
-        while self._state == 2:
+        while True:
             await asyncio.sleep(20)
             try:
                 await self.send({
@@ -331,11 +414,9 @@ class Session:
             except:
                 break
 
-        self._state_workers[1].set()
         await self.stop()
 
     async def send(self, body: dict, response=True, timeout=10):
-        # print("send", body) # DEBUG LOG
         message = self.msg_factory.create(body)
 
         if response:
@@ -364,7 +445,6 @@ class Session:
 
         result = self.wait_packet.pop(message.msg_id).value
 
-        # print("send result", result) # DEBUG LOG
 
         if result is None:
             raise TimeoutError("Время запроса вышло")
@@ -382,71 +462,121 @@ class Session:
         return result
 
     async def invoke(self, query, timeout=15, retrying=5, retry_delay=1.5):
-        try:
-            data = await self.send(query, timeout=timeout)
-            if not data:
-                return None
-            return data["result"]
-        except Exception as ex:
-            self.client.warn(f"Ошибка отправки invoke -> {ex}")
-            await asyncio.sleep(retry_delay) # TODO добавить обработку FloodWait, FloodPremiumWait
+        for attempt in range(retrying):
+            msg = self.msg_factory.create(query)
+            self.wait_packet[msg.msg_id] = asyncio.Event()
+            self.wait_packet[msg.msg_id].value = None
 
-        for _ in range(retrying):
+            self._batch_list.append(msg)
+            self._batch_event.set()
+
             try:
-                data = await self.send(query, timeout=timeout)
-                if not data:
+                await asyncio.wait_for(self.wait_packet[msg.msg_id].wait(), timeout)
+                result = self.wait_packet.pop(msg.msg_id).value
+
+                if not result:
                     return None
-                return data["result"]
+
+                result = result.get("result", result)
+                if "error_code" in result and result["error_code"] == 420:
+                    wait = float(result["error_message"].replace("FLOOD_WAIT_", ""))
+                    await asyncio.sleep(wait)
+                    self.client.warn(f"Обнаружен флуд, ожидание {wait}")
+                    continue
+                return result
+
             except Exception as ex:
-                self.client.warn(f"Ошибка отправки invoke -> {ex}")
-                await asyncio.sleep(retry_delay)
+                if attempt < retrying:
+                    self.client.warn(f"Ошибка отправки invoke -> {ex}. Попытка {attempt + 1}/{retrying}")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    raise TimeoutError(f"Ошибка отправки invoke, исчерпаны попытки({retrying}) -> {query} | {ex}")
 
-        raise TimeoutError(f"Ошибка отправки invoke, исчерпаны попытки({retrying}) -> {query}")
+    async def _invoke_batch_worker(self):
+        while True:
+            await self._batch_event.wait()
 
-    async def stop(self):
+            await asyncio.sleep(0.02)
+
+            batch = self._batch_list
+            self._batch_list = []
+            self._batch_event.clear()
+
+            if not batch:
+                continue
+
+            try:
+                if len(batch) == 1:
+                    message_to_send = batch[0]
+                else:
+                    container = MsgContainer(batch).write()
+                    message_to_send = CoreMessage(
+                        msg_id=self.msg_factory.get_msg_id(),
+                        seq_no=self.msg_factory.get_seq_no({"_": "msgContainer"}),
+                        length=len(container),
+                        body=container
+                    )
+
+                data = await self.loop.run_in_executor(
+                    self.pool_executor,
+                    self.connection.pack,
+                    message_to_send
+                )
+
+                if self._state in {1, 2}:
+                    await self.connection.send(data)
+            except Exception as ex:
+                self.client.error(ex)
+                [self.wait_packet[msg.msg_id].set() for msg in batch if msg.msg_id in self.wait_packet]
+
+    async def stop(self, r=1):
         if self._state != 2:
             return self.client.warn(f"Статус сессии == {self._state}, остановка пропущена")
 
         self._state = 3
 
-        await asyncio.wait_for(self._state_workers[0].wait(), timeout=None)
-        await asyncio.wait_for(self._state_workers[1].wait(), timeout=None)
-
-        self._state_workers[0].clear()
-        self._state_workers[1].clear()
+        try:
+            self._recv_task.cancel()
+        except:
+            pass
+        try:
+            self._batch_task.cancel()
+        except:
+            pass
+        try:
+            self._ping_task.cancel()
+        except:
+            pass
 
         self.connection.disconnect()
 
         self._state = 0
 
-        await self.start()
+        if r:
+            await self.start()
 
-    async def start(self, device_model="Ncore python", system_version="10.0", app_version="4.0", system_lang_code="ru", lang_pack="tdesktop", lang_code="ru"):
+    async def start(self):
         if self._state != 0:
             return self.client.warn(f"Статус сессии == {self._state}, запуск пропущен")
 
-        if not self._start_config:
-            self._start_config = {
-                "device_model": device_model,
-                "system_version": system_version,
-                "app_version": app_version,
-                "system_lang_code": system_lang_code,
-                "lang_pack": lang_pack,
-                "lang_code": lang_code,
-            }
-
         try:
             self._state = 1
+
+            await self.connection.init()
             await self.connection.connect()
-            self.loop.create_task(self.recv_worker())
+
+            self._recv_task = self.loop.create_task(self.recv_worker())
+            self._batch_task = self.loop.create_task(self._invoke_batch_worker())
+
             await self.send({"_": "ping", "ping_id": 0}, timeout=5)
+
             await self.send({
                 "_": "invokeWithLayer",
                 "layer": 222,
                 "query": {
                     "_": "initConnection",
                     "api_id": self.client.api_id,
-                    **self._start_config,
+                    **self.client._init_config,
                     "query": {
                         "_": "getConfig"
                     }
@@ -467,8 +597,9 @@ class Session:
                 self.client.storage["username"] = botauth["user"]["username"]
                 self.client.save_storage()
 
+            self._ping_task = self.loop.create_task(self.ping_worker())
+
             self._state = 2
-            self.loop.create_task(self.ping_worker())
         except Exception as ex:
             self._state = 0
             self.client.error(f"Ошибка запуска сессии -> {ex}")

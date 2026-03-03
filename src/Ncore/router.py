@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import re
+
 from typing import overload
+from collections.abc import Awaitable, Callable
 
 from Ncore.types import build_event, EventType
 
@@ -53,14 +55,14 @@ class Router:
         self.prefixes = sorted(prefixes, key=len, reverse=True)
 
     @overload
-    def add(self, command: str, event_type: set[str] | None, filter=lambda e: True):
+    def add(self, command: str, event_type: set[str] | None=None, filter: Callable[[dict], Awaitable[bool]] | None=None):
         ...
 
     @overload
-    def add(self, event_type: set[str], command: str | None, filter=lambda e: True):
+    def add(self, event_type: set[str], command: str | None=None, filter: Callable[[dict], Awaitable[bool]] | None=None):
         ...
 
-    def add(self, arg1: str | set[str], arg2: str | set[str] | None=None, filter=lambda e: True):
+    def add(self, arg1: str | set[str], arg2: str | set[str] | None=None, filter: Callable[[dict], Awaitable[bool]] | None=None):
         def decorator(func):
             command_pattern = None
             event_types = set()
@@ -211,7 +213,7 @@ class Router:
             return
 
         meta = node.handlers_meta[match.lastgroup]
-        if not await meta.custom_filter(full_context):
+        if meta.custom_filter and not await meta.custom_filter(full_context):
             return
 
         if meta.arg_instructions is None:
@@ -231,7 +233,7 @@ class Router:
         obj_type = raw_data["_"]
         if obj_type in {"updates", "updatesCombined"}:
             for update in raw_data["updates"]:
-                await self._process_single_update(update, full_context=raw_data)
+                self.client.loop.create_task(self._process_single_update(update, full_context=raw_data))
         elif obj_type == "updateShort":
             return await self._process_single_update(raw_data["update"], full_context=raw_data)
         else:

@@ -75,9 +75,9 @@ class MsgFactory:
 
 
 class Auth:
-    def __init__(self, client, loop, connection):
+    def __init__(self, client, connection):
         self.client = client
-        self.loop = loop
+        self.loop = client.loop
         self.connection = connection
 
         self._last_sync_time = time.time()
@@ -242,10 +242,7 @@ class Auth:
 
             self.client.storage["auth_key"] = auth_key
 
-            # try:
-            #     self.connection.sock.close()
-            # except:
-            #     pass
-            ## REUSE CONNECT
 
             return auth_key
+
+

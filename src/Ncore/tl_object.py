@@ -89,7 +89,6 @@ def get_tl_object(data):
 
 
 
-# TODO возможно встроить в TL schema, частый объект
 class MsgContainer:
     ID = b"\xdc\xf8\xf1s" # 0x73F1F8DC
     __slots__ = ("messages")
