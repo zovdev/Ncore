@@ -27,7 +27,7 @@ from Ncore.router import Router
 from Ncore.types import EventType, UpdateNewMessage, RawUpdate
 
 
-ADMINID = 772947818
+ADMINID = 777
 
 client = Client(api_id=..., api_hash="...", bot_token="...")
 router = Router(["/", "."])
@@ -42,6 +42,11 @@ async def handle_getuser(event: UpdateNewMessage):
     await event.answer("da")
 
 
+@router.add(EventType.NewMessage | EventType.EditMessage)
+async def handle_chk(event: UpdateNewMessage):
+    print(event.update)
+
+
 @router.add({"msgsAck"})
 async def handle_ack(event: RawUpdate):
     print(f"handle_ack {event}")
@@ -52,8 +57,7 @@ async def handle_update_delete_messages(event: RawUpdate):
     print(f"handle_update_delete_messages {event}")
 
 
-client.loop.run_until_complete(client.start(router=router))
-client.loop.run_forever()
+client.run(router=router, proxy="socks5://127.0.0.1:1089")
 
 ```
 
