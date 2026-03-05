@@ -17,10 +17,7 @@ import re
 from typing import overload
 from collections.abc import Awaitable, Callable
 
-from Ncore.types import build_event, EventType
-
-
-_BOOL_TRUE_VALUES = frozenset({"1", "true", "on", "yes", "enable"})
+from .types import build_event, EventType
 
 
 class HandlerMeta:
@@ -86,13 +83,13 @@ class Router:
         return decorator
 
     def _convert_bool(self, val):
-        return val.lower() in _BOOL_TRUE_VALUES
+        return val.lower() in {"1", "true", "on", "yes", "enable"}
 
     def _compile_cmd_pattern(self, command, handler_uid):
         arg_idx = 0
         final_pattern = ""
         args_map = {}
-        parts = [p.strip() for p in re.split(r"(<[^>]+>)", command) if p.strip()]
+        parts = [p.strip(" ") for p in re.split(r"(<[^>]+>)", command) if p.strip(" ")]
 
         for i, part in enumerate(parts):
             part_regex = ""
@@ -113,7 +110,7 @@ class Router:
                     ptn = r"\d+(?:\.\d+)?" 
                     cnv = float
                 elif typ == "str":
-                    ptn = r".+"
+                    ptn = r".+?"
                     cnv = str
                 elif typ == 'bool':
                     ptn = r"(?i:1|0|true|false|on|off|yes|no)"
@@ -124,6 +121,8 @@ class Router:
 
                 part_regex = f"(?P<{g_name}>{ptn})"
                 args_map[g_name] = (name, cnv)
+            elif part.isspace():
+                continue
             else:
                 part_regex = re.escape(part)
 
@@ -133,30 +132,31 @@ class Router:
                 else:
                     final_pattern += part_regex
             else:
+                space_str = r"\s+" if not (not self._tag_parser.match(parts[i-1]) and parts[i-1].isspace()) else re.escape(parts[i-1])
                 if is_optional_param:
-                    final_pattern += f"(?:\\s+{part_regex})?"
+                    final_pattern += f"(?:{space_str}{part_regex})?"
                 else:
-                    final_pattern += f"\\s+{part_regex}"
+                    final_pattern += f"{space_str}{part_regex}"
 
         return final_pattern, args_map
 
     def finalize(self, client):
         self.client = client
-
         prefix_regex = ""
         if self.prefixes:
             prefix_regex = f"(?:{'|'.join(re.escape(p) for p in self.prefixes)})\\s*"
 
-        grouped = {}
+        grouped_by_event = {}
         for reg in self._raw_registrations:
-            t = reg["types"]
-            if t not in grouped: grouped[t] = []
-            grouped[t].append(reg)
+            for event_type_str in reg["types"]:
+                if event_type_str not in grouped_by_event:
+                    grouped_by_event[event_type_str] = []
+                grouped_by_event[event_type_str].append(reg)
 
-        for types_set, handlers in grouped.items():
+        for event_type_str, handlers in grouped_by_event.items():
             regex_opts = []
             meta_map = {}
-            specific= []
+            specific = []
             generics = []
 
             for h in handlers:
@@ -175,7 +175,8 @@ class Router:
 
                 meta_map[uid] = HandlerMeta(h["func"], args, h["filter"])
 
-            if not regex_opts: continue
+            if not regex_opts: 
+                continue
 
             full_regex = re.compile("|".join(regex_opts), re.DOTALL)
             group_index_map = full_regex.groupindex
@@ -186,13 +187,11 @@ class Router:
                     for g_name, arg_name, conv in meta.arg_instructions:
                         g_idx = group_index_map.get(g_name)
                         new_instructions.append((g_idx, arg_name, conv))
-
                     meta.arg_instructions = tuple(new_instructions)
 
             node = RouteNode(full_regex, meta_map)
 
-            for t_str in types_set:
-                self._routes[t_str] = node
+            self._routes[event_type_str] = node
 
         del self._raw_registrations
 

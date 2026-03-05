@@ -18,8 +18,8 @@ import asyncio
 import msgpack
 
 
-from Ncore.router import Router
-from Ncore.session import Session
+from .router import Router
+from .session import Session
 
 
 class BaseClient:
@@ -88,9 +88,11 @@ class BaseClient:
     async def handle_updates(self, message):
         self.info(message)
 
+        # TODO добавить pre_middleware
 
         await self.router.feed(message)
 
+        # TODO добавить post_middleware
 
     async def idle(self):
         stop_event = asyncio.Event()

@@ -12,26 +12,40 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-class InputPeerEmpty:
-    def __new__(cls) -> dict:
-        return {"_": "inputPeerEmpty"}
+class InputPeer(dict):
+    __slots__ = ()
 
 
-class InputPeerSelf:
-    def __new__(cls) -> dict:
-        return {"_": "inputPeerSelf"}
+class InputPeerEmpty(InputPeer):
+    __slots__ = ()
+
+    def __init__(self):
+        dict.__init__(self, _="inputPeerEmpty")
 
 
-class InputPeerChat:
-    def __new__(cls, chat_id: int) -> dict:
-        return {"_": "inputPeerChat", "chat_id": chat_id}
+class InputPeerSelf(InputPeer):
+    __slots__ = ()
+
+    def __init__(self):
+        dict.__init__(self, _="inputPeerSelf")
 
 
-class InputPeerUser:
-    def __new__(cls, user_id: int, access_hash: int) -> dict:
-        return {"_": "inputPeerUser", "user_id": user_id, "access_hash": access_hash}
+class InputPeerChat(InputPeer):
+    __slots__ = ()
+
+    def __init__(self, chat_id: int):
+        dict.__init__(self, _="inputPeerChat", chat_id=chat_id)
 
 
-class InputPeerChannel:
-    def __new__(cls, channel_id: int, access_hash: int) -> dict:
-        return {"_": "inputPeerChannel", "channel_id": channel_id, "access_hash": access_hash}
+class InputPeerUser(InputPeer):
+    __slots__ = ()
+
+    def __init__(self, user_id: int, access_hash: int):
+        dict.__init__(self, _="inputPeerUser", user_id=user_id, access_hash=access_hash)
+
+
+class InputPeerChannel(InputPeer):
+    __slots__ = ()
+
+    def __init__(self, channel_id: int, access_hash: int):
+        dict.__init__(self, _="inputPeerChannel", channel_id=channel_id, access_hash=access_hash)

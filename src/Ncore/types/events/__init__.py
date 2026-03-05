@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .methods import Methods
-from .client import BaseClient
-from .tl_object import parser
-from .router import Router
+from .base import RawUpdate
+from .new_message import UpdateNewMessage
 
 
-class Client(BaseClient, Methods):
-    ...
+EVENT_ROUTER = {
+    "updateNewMessage": UpdateNewMessage,
+    "updateNewChannelMessage": UpdateNewMessage,
+    "updateEditMessage": UpdateNewMessage,
+    "updateEditChannelMessage": UpdateNewMessage
+}
 
 
-__version__ = "0.9.810"
-__all__ = ["Client", "Router", "parser"]
+def build_event(client, update, raw_update):
+    event_class = EVENT_ROUTER.get(update["_"], RawUpdate)
+    return event_class(client, update, raw_update)

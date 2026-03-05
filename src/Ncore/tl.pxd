@@ -84,7 +84,7 @@ cdef class TLParser:
     cdef size_t _buffer_size
     cdef size_t _position
     cdef int _error
-    
+
     cdef object _read_value(self, TLType field_type, object type_name=*)
     cdef void _write_value(self, object value, TLType field_type, object type_name=*)
     cdef uint32_t _read_int32(self)
@@ -94,11 +94,12 @@ cdef class TLParser:
     cdef object _read_string(self)
     cdef object _read_vector(self, object type_name)
     cdef object _read_object(self)
+
     cdef void _write_int32(self, int32_t value)
     cdef void _write_int64(self, uint64_t value)
     cdef void _write_double(self, double value)
     cdef void _write_bytes(self, bytes data)
     cdef void _write_string(self, str data)
     cdef void _write_vector(self, object value, object type_name)
-    cdef void _write_object(self, dict value)
+    cdef void _write_object(self, object value)
     cdef void _ensure_buffer(self, size_t needed)

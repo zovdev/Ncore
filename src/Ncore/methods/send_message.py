@@ -14,9 +14,8 @@
 
 from typing import overload
 
-import Ncore
 
-from Ncore import types
+from ..types import InputPeer, MessageEntity, InputReplyTo, ReplyMarkup, InputQuickReplyShortcut, SuggestedPost
 
 
 class SendMessage:
@@ -24,29 +23,29 @@ class SendMessage:
     async def send_message(
         self,
         message: str,
-        peer: types.InputPeer,
+        peer: InputPeer,
         random_id: int,
-        entities: list[types.MessageEntity] | None = None,
-        reply_to: types.InputReplyTo | None = None,
-        reply_markup: types.ReplyMarkup | None = None,
-        no_webpage: bool = False,
-        silent: bool = False,
-        background: bool = False,
-        clear_draft: bool = False,
-        noforwards: bool = False,
-        update_stickersets_order: bool = False,
-        invert_media: bool = False,
-        allow_paid_floodskip: bool = False,
-        schedule_date: int | None = None,
-        send_as: types.InputPeer | None = None,
-        quick_reply_shortcut: types.InputQuickReplyShortcut | None = None,
-        effect: int | None = None,
-        allow_paid_stars: int | None = None,
-        suggested_post: types.SuggestedPost | None = None,
+        entities: list[MessageEntity]=...,
+        reply_to: InputReplyTo=...,
+        reply_markup: ReplyMarkup=...,
+        no_webpage: bool=...,
+        silent: bool=...,
+        background: bool=...,
+        clear_draft: bool=...,
+        noforwards: bool=...,
+        update_stickersets_order: bool=...,
+        invert_media: bool=...,
+        allow_paid_floodskip: bool=...,
+        schedule_date: int=...,
+        send_as: InputPeer=...,
+        quick_reply_shortcut: InputQuickReplyShortcut=...,
+        effect: int=...,
+        allow_paid_stars: int=...,
+        suggested_post: SuggestedPost=...,
     ) -> dict:
         ...
 
-    async def send_message(self, message, peer, random_id, **params):
+    async def send_message(self, message: str, peer: InputPeer, random_id: int, **params) -> dict:
         params["_"] = "messages.sendMessage"
         params["message"] = message
         params["peer"] = peer

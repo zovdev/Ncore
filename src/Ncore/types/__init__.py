@@ -12,16 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from Ncore.types.input_peer import *
-from Ncore.types.event import *
+from .enums import EventType
+from .events import build_event, RawUpdate, UpdateNewMessage
+from .input_peer import InputPeer, InputPeerEmpty, InputPeerSelf, InputPeerChat, InputPeerUser, InputPeerChannel
+from .entity import (
+    build_entity, AnyMessageEntity, MessageEntity, MessageEntityUnknown,
+    MessageEntityMention, MessageEntityMentionName,
+    MessageEntityHashtag, MessageEntityCashtag, MessageEntityBotCommand, MessageEntityCustomEmoji,
+    MessageEntityUrl, MessageEntityTextUrl,
+    MessageEntityEmail, MessageEntityPhone, MessageEntityBankCard,
+    MessageEntityBold, MessageEntityItalic, MessageEntityUnderline, MessageEntityStrike, MessageEntitySpoiler, MessageEntityBlockquote,
+    MessageEntityCode, MessageEntityPre
+)
 
 
-class MessageEntity: ...
 class InputReplyTo: ...
 class ReplyMarkup: ...
-
-class InputPeer(InputPeerEmpty, InputPeerSelf, InputPeerChat, InputPeerUser, InputPeerChannel):
-    ...
-
 class InputQuickReplyShortcut: ...
 class SuggestedPost: ...

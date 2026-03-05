@@ -25,8 +25,8 @@ from hashlib import sha1, sha256
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor
 
-from Ncore.utils import MsgFactory, Auth
-from Ncore.tl_object import CoreMessage, MsgContainer, parser
+from .utils import Auth, MsgFactory
+from .tl_object import CoreMessage, MsgContainer
 
 
 BADMSGNOTIFICATIONS = {
@@ -42,6 +42,9 @@ BADMSGNOTIFICATIONS = {
     48: "Неправильная соль сервера.",
     64: "Недопустимый контейнер."
 }
+
+TIME_DIFF_30_SEC = 30 * 4294967296
+TIME_DIFF_5_MIN = -300 * 4294967296
 
 
 class Connect:
@@ -80,9 +83,18 @@ class Connect:
         self.salt = struct.pack("<Q", value)
 
     def kdf_pack(self, msg_key):
-        sha256_a = sha256(msg_key + self.__ak_036).digest()
-        sha256_b = sha256(self.__ak_4076 + msg_key).digest()
-        return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
+        h_a = sha256(msg_key)
+        h_a.update(self.__ak_036)
+        sha256_a = h_a.digest()
+
+        h_b = sha256(self.__ak_4076)
+        h_b.update(msg_key)
+        sha256_b = h_b.digest()
+
+        return (
+            sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32],
+            sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
+        )
 
     def kdf_unpack(self, msg_key):
         h_a = sha256(msg_key)
@@ -93,7 +105,10 @@ class Connect:
         h_b.update(msg_key)
         sha256_b = h_b.digest()
 
-        return sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32], sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
+        return (
+            sha256_a[:8] + sha256_b[8:24] + sha256_a[24:32],
+            sha256_b[:8] + sha256_a[8:24] + sha256_b[24:32]
+        )
 
     def pack(self, message):
         data = self.salt + self.session_id + message.write()
@@ -103,7 +118,10 @@ class Connect:
             padding_len += 16
         data_padding = data + os.urandom(padding_len)
 
-        msg_key = sha256(self.__ak_88120 + data_padding).digest()[8:24]
+        h_msg = sha256(self.__ak_88120)
+        h_msg.update(data_padding)
+        msg_key = h_msg.digest()[8:24]
+
         aes_key, aes_iv = self.kdf_pack(msg_key)
 
         return self.auth_key_id + msg_key + tgcrypto.ige256_encrypt(data_padding, aes_key, aes_iv)
@@ -320,11 +338,11 @@ class Session:
 
         time_diff = msg.msg_id - self.msg_factory.get_msg_id()
 
-        if time_diff > 128849018880:
+        if time_diff > TIME_DIFF_30_SEC:
             self.client.error("Ошибка времени, разница во времени 30 секунд")
             self.ignore_error += 1
             return
-        if time_diff < -1288490188800:
+        if time_diff < TIME_DIFF_5_MIN:
             self.client.error("Ошибка времени, разница во времени -5 минут")
             self.ignore_error += 1
             return
@@ -417,6 +435,7 @@ class Session:
         await self.stop()
 
     async def send(self, body: dict, response=True, timeout=10):
+        # print("send", body) # DEBUG LOG
         message = self.msg_factory.create(body)
 
         if response:
@@ -445,6 +464,7 @@ class Session:
 
         result = self.wait_packet.pop(message.msg_id).value
 
+        # print("send result", result) # DEBUG LOG
 
         if result is None:
             raise TimeoutError("Время запроса вышло")

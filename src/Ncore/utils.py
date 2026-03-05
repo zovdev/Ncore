@@ -242,6 +242,11 @@ class Auth:
 
             self.client.storage["auth_key"] = auth_key
 
+            # try:
+            #     self.connection.sock.close()
+            # except:
+            #     pass
+            ## REUSE CONNECT
 
             return auth_key
 

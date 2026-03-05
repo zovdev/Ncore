@@ -90,7 +90,7 @@ cdef class TLSchemaCompiler:
             raise MemoryError("Cannot allocate memory for schema")
         memset(self._schema, 0, sizeof(TLSchema))
         
-        self._schema.constructor_count = len(constructors_list)
+        self._schema.constructor_count = <int>len(constructors_list)
         self._schema.constructors = <TLConstructor*>malloc(
             self._schema.constructor_count * sizeof(TLConstructor))
             
@@ -132,7 +132,7 @@ cdef class TLSchemaCompiler:
         else:
             constr.id = <uint32_t>id_obj
             
-        constr.field_count = len(params)
+        constr.field_count = <int>len(params)
         if constr.field_count > 0:
             constr.fields = <TLField*>malloc(constr.field_count * sizeof(TLField))
             memset(constr.fields, 0, constr.field_count * sizeof(TLField))
@@ -383,7 +383,7 @@ cdef class TLParser:
         self._write_object(value)
         return PyBytes_FromStringAndSize(<char*>self._buffer, self._position)
 
-    cdef void _write_object(self, dict value):
+    cdef void _write_object(self, object value):
         cdef str constr_name = value.get('_')
         if not constr_name:
              raise ValueError("Object must have '_' field")
@@ -476,7 +476,7 @@ cdef class TLParser:
 
     cdef void _write_vector(self, object vector, object type_name):
         cdef list vec_list = vector if isinstance(vector, list) else list(vector)
-        cdef int count = len(vec_list)
+        cdef int count = <int>len(vec_list)
         cdef str elem_type_str
         cdef TLType elem_type = TL_TYPE_INT
         cdef bytes elem_type_bytes = None
@@ -508,7 +508,7 @@ cdef class TLParser:
         self._position += 8
 
     cdef void _write_bytes(self, bytes data):
-        cdef int length = len(data)
+        cdef int length = <int>len(data)
         cdef int i, padding
         self._ensure_buffer(length + 16)
         if length < 254:
