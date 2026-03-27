@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import overload
 from random import getrandbits
 
 
 from ...base.types import UpdateNewMessage
+from ...base.types import AnyInputPeer, AnyMessageEntity, AnyInputReplyTo, AnyReplyMarkup, AnyInputQuickReplyShortcut, AnySuggestedPost
 from .context import _current_client, _current_raw, _current_middle
 
 
@@ -53,7 +55,31 @@ class NcoreUpdateNewMessage(UpdateNewMessage):
     def middle(self):
         return _current_middle.get()
 
-    async def answer(self, message: str, **kwargs) -> dict:
+    @overload
+    async def answer(
+        self,
+        message: str,
+        entities: list[AnyMessageEntity] = ...,
+        reply_to: AnyInputReplyTo = ...,
+        reply_markup: AnyReplyMarkup = ...,
+        no_webpage: bool = ...,
+        silent: bool = ...,
+        background: bool = ...,
+        clear_draft: bool = ...,
+        noforwards: bool = ...,
+        update_stickersets_order: bool = ...,
+        invert_media: bool = ...,
+        allow_paid_floodskip: bool = ...,
+        schedule_date: int = ...,
+        send_as: AnyInputPeer = ...,
+        quick_reply_shortcut: AnyInputQuickReplyShortcut = ...,
+        effect: int = ...,
+        allow_paid_stars: int = ...,
+        suggested_post: AnySuggestedPost = ...,
+    ):
+        ...
+
+    async def answer(self, message: str, **kwargs):
         """Ответить на сообщение"""
         cid = self.message["peer_id"]
 
@@ -87,16 +113,16 @@ class NcoreUpdateNewMessage(UpdateNewMessage):
                 "chat_id": cid["chat_id"]
             }
 
-        if "reply_to" not in kwargs and self.message.reply_to and self.message.reply_to.forum_topic:
-            if self.message.reply_to.reply_to_top_id:
+        if "reply_to" not in kwargs and self.message["reply_to"] and self.message["reply_to"]["forum_topic"]:
+            if self.message["reply_to"]["reply_to_top_id"]:
                 kwargs["reply_to"] = {
                     "_": "inputReplyToMessage",
-                    "reply_to_msg_id": self.message.reply_to.reply_to_top_id
+                    "reply_to_msg_id": self.message["reply_to"]["reply_to_top_id"]
                 }
-            elif self.message.reply_to.reply_to_msg_id:
+            elif self.message["reply_to"]["reply_to_msg_id"]:
                 kwargs["reply_to"] = {
                     "_": "inputReplyToMessage",
-                    "reply_to_msg_id": self.message.reply_to.reply_to_msg_id
+                    "reply_to_msg_id": self.message["reply_to"]["reply_to_msg_id"]
                 }
 
         return await self.client.send_message(

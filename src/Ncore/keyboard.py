@@ -1,12 +1,26 @@
+# Copyright 2026 zovdev
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from typing import Optional, overload
 
 
 from .base.types import aliases
-from .base.types import ReplyInlineMarkup, ReplyKeyboardMarkup, KeyboardButtonRow, KeyboardButton
+from .base.types import ReplyInlineMarkup, ReplyKeyboardMarkup
 
 
 class InlineKeyboard(ReplyInlineMarkup):
-    __slots__ = ("__idx", "__max_idx")
+    __slots__ = ("__idx", "__max_idx", "__current_buttons")
 
     def __init__(self, rows: list[aliases.AnyKeyboardButtonRow] | None=None):
         self['_'] = 'replyInlineMarkup'
@@ -20,11 +34,14 @@ class InlineKeyboard(ReplyInlineMarkup):
             self.__max_idx = len(rows) - 1
             self.__idx = self.__max_idx
 
+        self.__current_buttons = self["rows"][self.__idx]["buttons"]
+
     def row(self, current_row: int | None=None):
         if current_row is not None:
-            if current_row > self.__max_idx:
+            if current_row < 0 or current_row > self.__max_idx:
                 raise ValueError("current_row должен быть меньше или равен максимальному количеству рядов")
             self.__idx = current_row
+            self.__current_buttons = self["rows"][self.__idx]["buttons"]
             return self
 
         self.__idx += 1
@@ -33,6 +50,7 @@ class InlineKeyboard(ReplyInlineMarkup):
             self["rows"].append({"buttons": [], '_': "keyboardButtonRow"})
             self.__max_idx += 1
 
+        self.__current_buttons = self["rows"][self.__idx]["buttons"]
         return self
 
     @overload
@@ -43,7 +61,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['url'] = url
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -54,7 +72,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['data'] = data
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -65,7 +83,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['query'] = query
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -75,7 +93,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['text'] = text
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -85,7 +103,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['text'] = text
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -97,7 +115,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['bot'] = bot
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -108,18 +126,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['url'] = url
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
-        return self
-
-    @overload
-    def simple_web_view(self, text: str, url: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
-
-    def simple_web_view(self, text, url, _='keyboardButtonSimpleWebView', **kwargs):
-        kwargs['text'] = text
-        kwargs['url'] = url
-        kwargs['_'] = _
-
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -130,7 +137,7 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['copy_text'] = copy_text
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
     @overload
@@ -141,46 +148,112 @@ class InlineKeyboard(ReplyInlineMarkup):
         kwargs['user_id'] = user_id
         kwargs['_'] = _
 
-        self["rows"][self.__idx]["buttons"].append(kwargs)
+        self.__current_buttons.append(kwargs)
         return self
 
 
-keyb = InlineKeyboard() # создание клавиатуры
-print(keyb)
+class ReplyKeyboard(ReplyKeyboardMarkup):
+    __slots__ = ("__idx", "__max_idx", "__current_buttons")
 
-keyb.row() # добавление новой строки ряда
+    @overload
+    def __init__(self, rows: Optional[list[aliases.AnyKeyboardButtonRow]] = None, resize: Optional[bool] = ..., single_use: Optional[bool] = ..., selective: Optional[bool] = ..., persistent: Optional[bool] = ..., placeholder: Optional[str] = ...): ...
 
-keyb.url("lox", "vk.com") # добавление кнопки ссылки
+    def __init__(self, rows=None, **kwargs):
+        self.update(kwargs)
 
-keyb.row() # добавление новой строки ряда
+        self['_'] = 'replyKeyboardMarkup'
 
-print(keyb)
-print("="*20)
+        if not rows:
+            self['rows'] = [{"buttons": [], '_': "keyboardButtonRow"}]
+            self.__max_idx = 0
+            self.__idx = 0
+        else:
+            self['rows'] = rows
+            self.__max_idx = len(rows) - 1
+            self.__idx = self.__max_idx
+
+        self.__current_buttons = self["rows"][self.__idx]["buttons"]
+
+    def row(self, current_row: int | None=None):
+        if current_row is not None:
+            if current_row < 0 or current_row > self.__max_idx:
+                raise ValueError("current_row должен быть в диапазоне [0 ... max_row]")
+            self.__idx = current_row
+            self.__current_buttons = self["rows"][self.__idx]["buttons"]
+            return self
+
+        self.__idx += 1
+
+        if self.__idx > self.__max_idx:
+            self["rows"].append({"buttons": [], '_': "keyboardButtonRow"})
+            self.__max_idx += 1
+
+        self.__current_buttons = self["rows"][self.__idx]["buttons"]
+        return self
+
+    @overload
+    def button(self, text: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
+
+    def button(self, text, _='keyboardButton', **kwargs):
+        kwargs['text'] = text
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
+
+    @overload
+    def request_phone(self, text: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
+
+    def request_phone(self, text, _='keyboardButtonRequestPhone', **kwargs):
+        kwargs['text'] = text
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
+
+    @overload
+    def request_geo_location(self, text: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
+
+    def request_geo_location(self, text, _='keyboardButtonRequestGeoLocation', **kwargs):
+        kwargs['text'] = text
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
+
+    @overload
+    def request_poll(self, text: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ..., quiz: Optional[bool] = ...): ...
+
+    def request_poll(self, text, _='keyboardButtonRequestPoll', **kwargs):
+        kwargs['text'] = text
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
+
+    @overload
+    def request_peer(self, text: str, button_id: int, peer_type: aliases.AnyRequestPeerType, max_quantity: int, name_requested: Optional[bool] = ..., username_requested: Optional[bool] = ..., photo_requested: Optional[bool] = ..., style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
+
+    def request_peer(self, text, button_id, peer_type, max_quantity, _='inputKeyboardButtonRequestPeer', **kwargs):
+        kwargs['text'] = text
+        kwargs['button_id'] = button_id
+        kwargs['peer_type'] = peer_type
+        kwargs['max_quantity'] = max_quantity
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
+
+    @overload
+    def simple_web_view(self, text: str, url: str, style: Optional[aliases.AnyKeyboardButtonStyle] = ...): ...
+
+    def simple_web_view(self, text, url, _='keyboardButtonSimpleWebView', **kwargs):
+        kwargs['text'] = text
+        kwargs['url'] = url
+        kwargs['_'] = _
+
+        self.__current_buttons.append(kwargs)
+        return self
 
 
-keyb = InlineKeyboard() # создание клавиатуры
-print(keyb)
-
-keyb.row() # добавление новой строки ряда
-
-keyb.row() # добавление новой строки ряда
-
-print(keyb)
-print("="*20)
-
-
-keyb = InlineKeyboard(rows=[
-    KeyboardButtonRow([KeyboardButton("lol"), KeyboardButton("lol2")]),
-    KeyboardButtonRow([KeyboardButton("lol3"), KeyboardButton("lol4")])
-]) # создание заполненой клавиатуры
-print(keyb)
-
-keyb.row() # создание 3 ряда
-
-keyb.row() # создание 4 ряда
-
-print(keyb)
-
-keyb.row(current_row=1) # переход к 1 строке ряда
-
-print(keyb)
+__all__ = ["InlineKeyboard", "ReplyKeyboard"]
