@@ -24,7 +24,7 @@ from .context import _current_client, _current_raw, _current_middle
 class NcoreRawUpdate:
     __slots__ = ("update")
 
-    def __init__(self, update):
+    def __init__(self, **update):
         self.update = update
 
     @property

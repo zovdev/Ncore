@@ -157,7 +157,13 @@ class BaseClient:
         await self.session.stop(r=0)
         self.stop_event.set()
 
-    async def start(self, router: Router | None=None, handle_updates: None=None, proxy: str | None=None):
+    async def start(
+        self,
+        router: Router | None=None,
+        handle_updates: None=None,
+        proxy: str | None=None,
+        load_updates: bool = False
+    ):
         self.loop = asyncio.get_running_loop()
 
         if handle_updates is not None:
@@ -173,7 +179,13 @@ class BaseClient:
         await self.session.start()
         await self.session.send({"_": "getState"})
 
-    def run(self, router: Router | None=None, handle_updates=None, proxy: str | None=None):
+    def run(
+        self,
+        router: Router | None=None,
+        handle_updates=None,
+        proxy: str | None=None,
+        load_updates: bool = False
+    ):
         if self.loop is None:
             try:
                 self.loop = asyncio.get_running_loop()
@@ -182,7 +194,7 @@ class BaseClient:
                 asyncio.set_event_loop(self.loop)
 
         try:
-            self.loop.run_until_complete(self.start(router=router, handle_updates=handle_updates, proxy=proxy))
+            self.loop.run_until_complete(self.start(router=router, handle_updates=handle_updates, proxy=proxy, load_updates=load_updates))
             self.loop.run_forever()
         except KeyboardInterrupt:
             self.loop.run_until_complete(self.session.stop(r=0))
