@@ -19,10 +19,12 @@ EVENT_ROUTER = {
     "updateNewMessage": NcoreUpdateNewMessage,
     "updateNewChannelMessage": NcoreUpdateNewMessage,
     "updateEditMessage": NcoreUpdateNewMessage,
-    "updateEditChannelMessage": NcoreUpdateNewMessage
+    "updateEditChannelMessage": NcoreUpdateNewMessage,
+    "updateBotChatInviteRequester": NcoreUpdateBotChatInviteRequester
 }
 
 
 class EventType:
     NewMessage = {"updateNewMessage", "updateNewChannelMessage"}
     EditMessage = {"updateEditMessage", "updateEditChannelMessage"}
+    ChatInviteRequest = {"updateBotChatInviteRequester"}

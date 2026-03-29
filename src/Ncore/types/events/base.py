@@ -12,13 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import overload
 from random import getrandbits
+from typing import overload
 
-
-from ...base.types import UpdateNewMessage
-from ...base.types import AnyInputPeer, AnyMessageEntity, AnyInputReplyTo, AnyReplyMarkup, AnyInputQuickReplyShortcut, AnySuggestedPost
 from .context import _current_client, _current_raw, _current_middle
+from ...base import UpdateBotChatInviteRequester
+from ...base.types import AnyInputPeer, AnyMessageEntity, AnyInputReplyTo, AnyReplyMarkup, AnyInputQuickReplyShortcut, \
+    AnySuggestedPost
+from ...base.types import UpdateNewMessage
 
 
 class NcoreRawUpdate:
@@ -57,25 +58,25 @@ class NcoreUpdateNewMessage(UpdateNewMessage):
 
     @overload
     async def answer(
-        self,
-        message: str,
-        entities: list[AnyMessageEntity] = ...,
-        reply_to: AnyInputReplyTo = ...,
-        reply_markup: AnyReplyMarkup = ...,
-        no_webpage: bool = ...,
-        silent: bool = ...,
-        background: bool = ...,
-        clear_draft: bool = ...,
-        noforwards: bool = ...,
-        update_stickersets_order: bool = ...,
-        invert_media: bool = ...,
-        allow_paid_floodskip: bool = ...,
-        schedule_date: int = ...,
-        send_as: AnyInputPeer = ...,
-        quick_reply_shortcut: AnyInputQuickReplyShortcut = ...,
-        effect: int = ...,
-        allow_paid_stars: int = ...,
-        suggested_post: AnySuggestedPost = ...,
+            self,
+            message: str,
+            entities: list[AnyMessageEntity] = ...,
+            reply_to: AnyInputReplyTo = ...,
+            reply_markup: AnyReplyMarkup = ...,
+            no_webpage: bool = ...,
+            silent: bool = ...,
+            background: bool = ...,
+            clear_draft: bool = ...,
+            noforwards: bool = ...,
+            update_stickersets_order: bool = ...,
+            invert_media: bool = ...,
+            allow_paid_floodskip: bool = ...,
+            schedule_date: int = ...,
+            send_as: AnyInputPeer = ...,
+            quick_reply_shortcut: AnyInputQuickReplyShortcut = ...,
+            effect: int = ...,
+            allow_paid_stars: int = ...,
+            suggested_post: AnySuggestedPost = ...,
     ):
         ...
 
@@ -130,4 +131,118 @@ class NcoreUpdateNewMessage(UpdateNewMessage):
             peer=cid,
             random_id=getrandbits(60),
             **kwargs
+        )
+
+
+class NcoreUpdateBotChatInviteRequester(UpdateBotChatInviteRequester):
+    __slots__ = ()
+
+    @property
+    def client(self):
+        return _current_client.get()
+
+    @property
+    def raw_update(self):
+        return _current_raw.get()
+
+    @property
+    def middle(self):
+        return _current_middle.get()
+
+    def _get_peer_user(self):
+        for t in self.raw_update["users"]:
+            if t["id"] == self["user_id"]:
+                break
+        else:
+            self.client.error("Юзер для ответа не найден")
+            raise ValueError("Юзер для ответа не найден")
+
+        return {
+            "_": "inputPeerUser",
+            "user_id": t["id"],
+            "access_hash": t["access_hash"]
+        }
+
+    def _get_peer_chat(self):
+        raw_peer = self["peer"]
+
+        chat_access_hash = 0
+        if "chats" in self.raw_update:
+            target_id = raw_peer.get("channel_id") or raw_peer.get("chat_id")
+
+            for i in self.raw_update["chats"]:
+                if i["id"] == target_id:
+                    chat_access_hash = i.get("access_hash", 0)
+                    break
+
+        if raw_peer["_"] == "peerChannel":
+            return {
+                "_": "inputPeerChannel",
+                "channel_id": raw_peer["channel_id"],
+                "access_hash": chat_access_hash
+            }
+        elif raw_peer["_"] == "peerChat":
+            return {
+                "_": "inputPeerChat",
+                "chat_id": raw_peer["chat_id"],
+            }
+
+    @overload
+    async def answer(
+            self,
+            message: str,
+            entities: list[AnyMessageEntity] = ...,
+            reply_to: AnyInputReplyTo = ...,
+            reply_markup: AnyReplyMarkup = ...,
+            no_webpage: bool = ...,
+            silent: bool = ...,
+            background: bool = ...,
+            clear_draft: bool = ...,
+            noforwards: bool = ...,
+            update_stickersets_order: bool = ...,
+            invert_media: bool = ...,
+            allow_paid_floodskip: bool = ...,
+            schedule_date: int = ...,
+            send_as: AnyInputPeer = ...,
+            quick_reply_shortcut: AnyInputQuickReplyShortcut = ...,
+            effect: int = ...,
+            allow_paid_stars: int = ...,
+            suggested_post: AnySuggestedPost = ...,
+    ):
+        ...
+
+    async def answer(self, message: str, **kwargs):
+        cid = self._get_peer_user()
+
+        return await self.client.send_message(
+            message=message,
+            peer=cid,
+            random_id=getrandbits(60),
+            **kwargs
+        )
+
+    async def approved(self):
+        peer = self._get_peer_chat()
+        cid = self._get_peer_user()
+
+        return self.client.invoke(
+            {
+                "_": "messages.hideChatJoinRequest",
+                "peer": peer,
+                "user_id": cid,
+                "approved": True
+            }
+        )
+
+    async def depproved(self):
+        peer = self._get_peer_chat()
+        cid = self._get_peer_user()
+
+        return self.client.invoke(
+            {
+                "_": "messages.hideChatJoinRequest",
+                "peer": peer,
+                "user_id": cid,
+                "approved": False
+            }
         )

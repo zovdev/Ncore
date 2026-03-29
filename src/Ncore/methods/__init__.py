@@ -13,9 +13,11 @@
 # limitations under the License.
 
 from .send_message import SendMessage
+from .hide_chatJoin_request import HideChatJoinRequest
 
 
 class Methods(
-    SendMessage
+    SendMessage,
+    HideChatJoinRequest,
 ):
     ...
