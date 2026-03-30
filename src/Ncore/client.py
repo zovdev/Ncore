@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import sys
+import hashlib
 import inspect
 import asyncio
 import msgpack
@@ -63,22 +64,34 @@ class BaseClient:
             "lang_code": lang_code,
         }
 
-        self.storage = {
-            "id": None,
-            "first_name": None,
-            "username": None,
-            "dc_id": 2,
-            "auth_key": None,
-        }
+        if self.storagename and self.storagename != ":memory:":
+            sfbt = hashlib.sha256(self.bot_token.encode("utf-8")).hexdigest()
 
-        try:
-            if self.storagename and self.storagename != ":memory:":
-                self.storage = msgpack.load(open(self.storagename, "rb"))
+            try:
+                self.storage: dict = msgpack.load(open(self.storagename, "rb"))
+                if self.storage.get("bot_token", "") != sfbt:
+                    raise ValueError("токен не совпадает")
                 self.info(f"Сессия [{self.storagename}] загружена")
-            else:
-                self.info("Сессия [:memory:] загружена")
-        except:
-            self.save_storage()
+            except:
+                self.storage = {
+                    "id": None,
+                    "first_name": None,
+                    "username": None,
+                    "dc_id": 2,
+                    "auth_key": None,
+                    "bot_token": sfbt
+                }
+                self.save_storage()
+                self.info(f"Сессия [{self.storagename}] создана")
+        else:
+            self.storage = {
+                "id": None,
+                "first_name": None,
+                "username": None,
+                "dc_id": 2,
+                "auth_key": None
+            }
+            self.info("Сессия [:memory:] загружена")
 
         self.connection = connection
         self.connection.client = self

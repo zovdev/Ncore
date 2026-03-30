@@ -16,10 +16,10 @@ from random import getrandbits
 from typing import overload
 
 from .context import _current_client, _current_raw, _current_middle
-from ...base import UpdateBotChatInviteRequester
-from ...base.types import AnyInputPeer, AnyMessageEntity, AnyInputReplyTo, AnyReplyMarkup, AnyInputQuickReplyShortcut, \
-    AnySuggestedPost
-from ...base.types import UpdateNewMessage
+from ...base import (
+    UpdateNewMessage, UpdateBotChatInviteRequester,
+    AnyInputPeer, AnyMessageEntity, AnyInputReplyTo, AnyReplyMarkup, AnySuggestedPost, AnyInputQuickReplyShortcut
+)
 
 
 class NcoreRawUpdate:
@@ -78,6 +78,7 @@ class NcoreUpdateNewMessage(UpdateNewMessage):
             allow_paid_stars: int = ...,
             suggested_post: AnySuggestedPost = ...,
     ):
+        """Ответить на сообщение"""
         ...
 
     async def answer(self, message: str, **kwargs):

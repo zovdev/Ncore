@@ -12,12 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .send_message import SendMessage
-from .hide_chat_join_request import HideChatJoinRequest
+from ..base import InputUser, AnyInputPeer
 
 
-class Methods(
-    SendMessage,
-    HideChatJoinRequest,
-):
-    ...
+class HideChatJoinRequest:
+    async def chat_join_approved(
+        self,
+        peer: AnyInputPeer,
+        user_id: InputUser,
+        approved: bool | None = True,
+        **params
+    ) -> dict:
+        params["_"] = "messages.hideChatJoinRequest"
+        params["peer"] = peer
+        params["user_id"] = user_id
+        params["approved"] = approved
+        return await self.invoke(params)

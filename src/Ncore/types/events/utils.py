@@ -12,12 +12,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .send_message import SendMessage
-from .hide_chat_join_request import HideChatJoinRequest
-
-
-class Methods(
-    SendMessage,
-    HideChatJoinRequest,
-):
-    ...
