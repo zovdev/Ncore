@@ -20,8 +20,9 @@ import msgpack
 
 
 from .router import Router
+from .session import Session
+from .connect import Connect
 from .base import build_object
-from .session import Session, Connect
 from .base.methods import TLMethod, ReturnT
 
 
