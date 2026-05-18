@@ -323,6 +323,16 @@ class Session:
 
                 botauth = botauth["result"]
 
+                if botauth["_"] == "rpcError":
+                    if "USER_MIGRATE_" in botauth["error_message"]:
+                        self.client.storage["dc_id"] = int(botauth["error_message"][-1])
+                        self.client.storage["auth_key"] = None
+                        self._state = 2
+                        await self.stop()
+                        return
+
+                    raise ValueError(f"rpcError ({botauth['error_code']}) {botauth['error_message']}")
+
                 self.client.storage["id"] = botauth["user"]["id"]
                 self.client.storage["first_name"] = botauth["user"]["first_name"]
                 self.client.storage["username"] = botauth["user"]["username"]
