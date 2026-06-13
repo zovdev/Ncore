@@ -122,7 +122,7 @@ class Session:
                 self.connection.unpack,
                 packet
             )
-        except BaseException as ex:
+        except Exception as ex:
             self.client.error(ex)
             return await self.stop()
 
@@ -174,7 +174,7 @@ class Session:
                     "ping_id": self.msg_factory.get_msg_id(),
                     "disconnect_delay": 25
                 }, False)
-            except:
+            except Exception:
                 break
 
         await self.stop()
@@ -193,7 +193,7 @@ class Session:
 
         try:
             await self.connection.send(data)
-        except BaseException as ex:
+        except Exception as ex:
             self.wait_packet.pop(message.msg_id, None)
             raise ex
 

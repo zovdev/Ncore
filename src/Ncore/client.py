@@ -69,11 +69,12 @@ class BaseClient:
             sfbt = hashlib.sha256(self.bot_token.encode("utf-8")).hexdigest()
 
             try:
-                self.storage: dict = msgpack.load(open(self.storagename, "rb"))
+                with open(self.storagename, "rb") as f:
+                    self.storage: dict = msgpack.load(f)
                 if self.storage.get("bot_token", "") != sfbt:
                     raise ValueError("токен не совпадает")
                 self.info(f"Сессия [{self.storagename}] загружена")
-            except:
+            except Exception:
                 self.storage = {
                     "id": None,
                     "first_name": None,
@@ -104,8 +105,9 @@ class BaseClient:
         if not self.storagename or self.storagename == ":memory:":
             return
         try:
-            msgpack.dump(self.storage, open(self.storagename, "wb"))
-        except BaseException as ex:
+            with open(self.storagename, "wb") as f:
+                msgpack.dump(self.storage, f)
+        except Exception as ex:
             self.error(f"Ошибка сохранения сессии [{self.storagename}] -> {ex}")
 
     def set_pre_middleware(self, obj):
