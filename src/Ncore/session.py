@@ -319,7 +319,7 @@ class Session:
                 })
 
                 if botauth and "result" not in botauth:
-                    raise
+                    raise RuntimeError(f"Ошибка авторизации бота -> {botauth}")
 
                 botauth = botauth["result"]
 
