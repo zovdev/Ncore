@@ -15,10 +15,10 @@
 import time
 import struct
 import asyncio
-
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
-
+import Ncore
 from .utils import MsgFactory
 from .tl_object import CoreMessage, MsgContainer
 
@@ -50,7 +50,7 @@ class Session:
         "_recv_task", "_batch_task", "_ping_task"
     )
 
-    def __init__(self, client, mt_workers=2):
+    def __init__(self, client: "Ncore.client.BaseClient", mt_workers=2):
         self.client = client
         self.loop = client.loop
 
@@ -67,7 +67,7 @@ class Session:
         self.wait_packet = {}
         self.time_offset = None
         self.pending_acks = set()
-        self.recent_msg_ids  = set()
+        self.recent_msg_ids = deque(maxlen=5000)
 
     def server_time(self):
         return time.time() + (self.time_offset or 0)
@@ -117,11 +117,12 @@ class Session:
 
     async def handle_packet(self, packet):
         try:
-            data = await self.loop.run_in_executor(
-                self.pool_executor,
-                self.connection.unpack,
-                packet
-            )
+            # data = await self.loop.run_in_executor(
+            #     self.pool_executor,
+            #     self.connection.unpack,
+            #     packet
+            # )
+            data = self.connection.unpack(packet)
         except Exception as ex:
             self.client.error(ex)
             return await self.stop()
@@ -145,23 +146,26 @@ class Session:
 
     async def recv_worker(self):
         while True:
-            packet = await self.connection.recv()
+            try:
+                packet = await self.connection.recv()
 
-            if packet is None:
-                self.client.error("Сервер ничего не отправил")
-                break
-            if len(packet) == 4:
-                if packet == b"l\xfe\xff\xff":
-                    self.client.error("Ошибка 404 (AuthKeyNotFound) указанный идентификатор ключ не может быть найден DC / какой-либо из указанных запросов неправильный / некоторые поля MTProto неверны")
-                elif packet == b"S\xfe\xff\xff":
-                    self.client.error("Ошибка 429 (TransportFlood) слишком много транспортных соединений с одним IP / какой-либо из ограничений контейнера (сервисного сообщения) достигнут")
-                elif packet == b"D\xfe\xff\xff":
-                    self.client.error("Ошибка 444 (InvalidDC) возвращается при создании ключей, подключающегося к MTProxy если указан неверный DC ID")
-                else:
-                    self.client.error(f"Неизвестная ошибка сервера - {struct.unpack('<i', packet)[0]}")
-                break
+                if packet is None:
+                    self.client.error("Сервер ничего не отправил")
+                    break
+                if len(packet) == 4:
+                    if packet == b"l\xfe\xff\xff":
+                        self.client.error("Ошибка 404 (AuthKeyNotFound) указанный идентификатор ключ не может быть найден DC / какой-либо из указанных запросов неправильный / некоторые поля MTProto неверны")
+                    elif packet == b"S\xfe\xff\xff":
+                        self.client.error("Ошибка 429 (TransportFlood) слишком много транспортных соединений с одним IP / какой-либо из ограничений контейнера (сервисного сообщения) достигнут")
+                    elif packet == b"D\xfe\xff\xff":
+                        self.client.error("Ошибка 444 (InvalidDC) возвращается при создании ключей, подключающегося к MTProxy если указан неверный DC ID")
+                    else:
+                        self.client.error(f"Неизвестная ошибка сервера - {struct.unpack('<i', packet)[0]}")
+                    break
 
-            self.loop.create_task(self.handle_packet(packet))
+                self.loop.create_task(self.handle_packet(packet))
+            except Exception:
+                break
 
         await self.stop()
 

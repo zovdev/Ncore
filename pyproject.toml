@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Ncore"
-version = "0.9.834"
+version = "0.9.865"
 authors = [
     { name="zovdev" },
 ]
@@ -29,7 +29,6 @@ classifiers = [
 
 dependencies = [
     "msgpack>=1.1.0",
-    "tgcrypto>=1.2.5",
 ]
 
 [tool.setuptools]

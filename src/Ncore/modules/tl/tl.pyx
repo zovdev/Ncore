@@ -13,12 +13,19 @@
 # limitations under the License.
 
 # distutils: language = c++
+# cython: language_level = 3
 # cython: boundscheck = False
 # cython: wraparound = False
 # cython: nonecheck = False
 # cython: cdivision = True
 
 import json
+from libc.stdint cimport uint32_t, uint64_t, int32_t, int64_t
+from libc.string cimport memcpy, memset
+from libcpp.unordered_map cimport unordered_map
+from libcpp.string cimport string
+from cpython.bytes cimport PyBytes_FromStringAndSize
+
 from cpython.ref cimport Py_INCREF, Py_DECREF, PyObject
 from cpython.list cimport PyList_New, PyList_SET_ITEM
 from cpython.dict cimport PyDict_Contains
@@ -31,7 +38,53 @@ cdef extern from "stdlib.h":
     void free(void* ptr)
     void* realloc(void* ptr, size_t size)
 
+cdef extern from "string.h":
+    char* strdup(const char* s)
+    int strcmp(const char* s1, const char* s2)
+
+cdef extern from "tl.h":
+    ctypedef enum TLType:
+        TL_TYPE_INT
+        TL_TYPE_LONG
+        TL_TYPE_DOUBLE
+        TL_TYPE_STRING
+        TL_TYPE_BYTES
+        TL_TYPE_BOOL
+        TL_TYPE_VECTOR
+        TL_TYPE_OBJECT
+    
+    ctypedef struct TLOptionalFlag:
+        int bit_position
+        int flags_index
+        char* name
+    
+    ctypedef struct TLField:
+        char* name
+        PyObject* py_name
+        TLType type
+        char* type_name
+        int is_optional
+        TLOptionalFlag flag_info
+        int is_generic
+    
+    ctypedef struct TLConstructor:
+        uint32_t id
+        char* name
+        char* type
+        TLField* fields
+        int field_count
+        int has_flags
+        int has_flags2
+    
+    ctypedef struct TLSchema:
+        TLConstructor* constructors
+        int constructor_count
+
 cdef class TLSchemaCompiler:
+    cdef TLSchema* _schema
+    cdef unordered_map[uint32_t, TLConstructor*] _id_map
+    cdef unordered_map[string, TLConstructor*] _name_map
+
     def __cinit__(self):
         self._schema = NULL
 
@@ -181,6 +234,14 @@ cdef class TLSchemaCompiler:
         return self._schema
 
 cdef class TLParser:
+    cdef TLSchema* _schema
+    cdef TLSchemaCompiler _compiler
+    cdef unsigned char* _buffer
+    cdef size_t _buffer_alloc_size
+    cdef size_t _buffer_size
+    cdef size_t _position
+    cdef int _error
+
     def __cinit__(self, object schema_json):
         self._compiler = TLSchemaCompiler()
         self._compiler.compile(schema_json)

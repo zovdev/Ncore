@@ -192,7 +192,7 @@ class ResPQ:
             Bytes(self.pq) +
             b"\x15\xc4\xb5\x1c" +
             struct.pack("<i", len(self.server_public_key_fingerprints)) +
-            struct.pack(f"<{len(self.server_public_key_fingerprints)}q", **self.server_public_key_fingerprints)
+            struct.pack(f"<{len(self.server_public_key_fingerprints)}q", *self.server_public_key_fingerprints)
         )
 
 

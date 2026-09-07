@@ -131,11 +131,12 @@ class BaseClient:
 
     async def invoke(self, query: TLMethod[ReturnT], timeout=15, retrying=3, retry_delay=1.5) -> ReturnT:
         session = self.session
-        msg = session.msg_factory.create(query)
-
-        session.wait_packet[msg.msg_id] = session.loop.create_future()
 
         for attempt in range(retrying):
+            msg = session.msg_factory.create(query)
+
+            session.wait_packet[msg.msg_id] = session.loop.create_future()
+
             session._batch_list.append(msg)
             session._batch_event.set()
 
@@ -150,6 +151,7 @@ class BaseClient:
                         wait = float(result["error_message"].replace("FLOOD_WAIT_", ""))
                         await asyncio.sleep(wait)
                         self.warn(f"Обнаружен флуд, ожидание {wait}")
+                        session.wait_packet.pop(msg.msg_id)
                         continue
                 return build_object(result)
 
