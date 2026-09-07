@@ -814,8 +814,6 @@ class WebProxyTransport:
     async def connect(self):
         loop = asyncio.get_event_loop()
         capability = derive_bridge_capability(self.hostname, self.secret)
-        self.client.info(f"WEB proxy: получение bridge [{self.hostname}]")
-
         conn = self._new_http()
         try:
             status, headers, body = await self._request(
@@ -834,7 +832,6 @@ class WebProxyTransport:
             if batch_match:
                 self.batch_limit = max(MIN_BATCH, min(int(batch_match.group(1)), DEFAULT_BATCH))
 
-            self.client.info("WEB proxy: создание сессии")
             status, headers, body = await self._request(
                 conn, "POST", "/api/v1/session",
                 headers=(("Authorization", f"Bearer {self.bootstrap}"),),
@@ -867,8 +864,6 @@ class WebProxyTransport:
             await self.websocket.connect()
             self._tasks.append(loop.create_task(self._ws_up_worker()))
             self._tasks.append(loop.create_task(self._ws_down_worker()))
-
-        self.client.info(f"WEB proxy: сессия установлена (carrier: {self.carrier_mode})")
 
     async def open_stream(self):
         if self._closed or self._failed:
