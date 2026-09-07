@@ -8,6 +8,7 @@ __pycache__/
 *.pyd
 *.so
 *.c
+*.cpp
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -26,5 +27,7 @@ env/
 Thumbs.db
 
 src/*
-!src/*/
 storage
+
+!src/*/
+!src/Ncore/modules/ncrypto/ncrypto_aes.c
