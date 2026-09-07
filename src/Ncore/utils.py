@@ -15,13 +15,13 @@
 import os
 import time
 import struct
-import tgcrypto
 
 from io import BytesIO
 from hashlib import sha1
 
 
 from . import rsa
+from .ncrypto import AesIge256
 from .tl_object import (
     CoreMessage, parser,
     PQInnerData, ReqPqMulti, ReqDHParams, ServerDHInnerData, ClientDHInnerData,
@@ -76,6 +76,7 @@ class MsgFactory:
         seq_no = self.get_seq_no(body)
 
         body_bytes = parser.pack(body)
+
         return CoreMessage(msg_id, seq_no, len(body_bytes), body_bytes)
 
 
@@ -178,7 +179,7 @@ class Auth:
 
             server_nonce = int.from_bytes(server_nonce, "little", signed=True)
 
-            answer_with_hash = tgcrypto.ige256_decrypt(encrypted_answer, tmp_aes_key, tmp_aes_iv)
+            answer_with_hash = AesIge256(tmp_aes_key).decrypt(encrypted_answer, tmp_aes_iv)
             server_dh_inner_data = ServerDHInnerData.read(BytesIO(answer_with_hash[24:]))
 
             dh_prime = int.from_bytes(server_dh_inner_data.dh_prime, "big")
@@ -198,7 +199,7 @@ class Auth:
 
             sha = sha1(data).digest()
             padding = os.urandom(-(len(data) + len(sha)) % 16)
-            encrypted_data = tgcrypto.ige256_encrypt((sha + data + padding), tmp_aes_key, tmp_aes_iv)
+            encrypted_data = AesIge256(tmp_aes_key).encrypt((sha + data + padding), tmp_aes_iv)
 
             set_client_dh_params_answer = await self.invoke(
                 SetClientDHParams(
